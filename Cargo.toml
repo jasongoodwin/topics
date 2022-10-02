@@ -6,3 +6,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+dashmap = "5.4.0"
+tokio = { version = "1", features = ["full"] }
+futures-channel = "0.3.24"
+uuid = { version = "1.1.2", features = ["v4"] }
+
