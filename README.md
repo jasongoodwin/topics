@@ -1,8 +1,5 @@
-# topics
+# topics-rs
 A redis-pub/sub-inspired Rust demo/project showing an in memory topic store that publishes updates to consumers.
-
-I suppose it's similar to mini-redis tutorial project from Tokio?
-I didn't look at it though - I'm just building this from scratch to get un-rusty with rust as it's been a few months.
 
 This project is a demonstration only and is not intended for production use.
 See REDIS if you need something similar as the channels and pub/sub features are well developed.
@@ -22,10 +19,10 @@ Once you have telnet installed, you can connect to the server like so via termin
 
 `telnet 127.0.0.1 8889`
 
-Then you can issue commands:
+Then you can issue space delimited commands:
 
 `SUB mytopic`
-`PUB mytopic a message`
+`PUB mytopic I'm a message!`
 
 You should see the responses.
 
@@ -40,17 +37,17 @@ A connection can publish a message to a topic like so:
 `PUB topic I'm a message`
 
 Connections are made and can subscribe to any topic by sending a message:
-`SUB $topic \n`
+`SUB $topic`
 
-The messages are sent back over the wire are as follows:
-`UPDATED $topic $message`
+Replies are provided to the socket - because the server has some asynchrony, it sends some information about the reply.
+`OK SUB top1`
 
 # Design
 Each connection feeds messages to a single thread to maintain ordering.
 There is a lock-free core task loop that will read requests and reply with updates to listener tasks.
-This is done in a non-blocking fashion to require a small resource footprint while maintaining asynchrony at the expense of needing the Tokio runtime in the project.
+This is done in a non-blocking fashion to require a small resource footprint while maintaining some asynchrony at the expense of needing the Tokio runtime in the project.
 These trade-offs are well considered and I feel this is a good seed project for most any related use case.
-I could be sharded and scaled to improve resource utilization depending on the use cases. It'll be very, very fast tho so only extreme applications would need to 
+It could be sharded and scaled to improve resource utilization depending on the use cases. It'll be very, very fast tho so only extreme applications would need to. 
 consider moving in that direction.
 
 At the core, there are three areas of interest:
