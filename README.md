@@ -9,14 +9,13 @@ See REDIS if you need something similar as the channels and pub/sub features are
 
 # Usage
 
-The server listens on `0:0:0:0:8889` by default, or you can pass in a single argument when starting the application:
+The server listens on `0.0.0.0:8889` by default, or you can pass in a single argument when starting the application:
 `cargo run 127.0.0.1:7777`
 
 ## How To Follow Along
 
-You can test the server by using eg `telnet` as it's not installed by default anymore.
-DYOR on the security implications.
-
+You can test the server by using `telnet`.
+(you may need to brew install telnet)
 https://formulae.brew.sh/formula/telnet
 
 Once you have telnet installed, you can connect to the server like so via terminal:
@@ -28,29 +27,22 @@ Then you can issue commands:
 `SUB mytopic`
 `PUB mytopic a message`
 
-You should see the response:
+You should see the responses.
 
 ## Protocol
-
-
-This uses tokio for async, and stays away from any heavy abstractions like actors.
+This uses tokio's reactor for async.
 It uses mpsc to manage connections to topics.
 
 The protocol is simple:
 
-A connection can push a message to a topic like so:
+A connection can publish a message to a topic like so:
 
-`PUB $topic $message \n`
-
-For now, it's assumed strings are sent so sending binary like a protocol buffer may or may not work.
-Any new-line will terminate the message.
+`PUB topic I'm a message`
 
 Connections are made and can subscribe to any topic by sending a message:
-
 `SUB $topic \n`
 
-The only messages back over the wire are as follows:
-
+The messages are sent back over the wire are as follows:
 `UPDATED $topic $message`
 
 # Design
