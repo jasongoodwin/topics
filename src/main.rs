@@ -1,9 +1,3 @@
-mod codec;
-mod protocol;
-mod result;
-
-use crate::protocol::{Frame, MessageType};
-use dashmap::{DashMap, DashSet};
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::env;
@@ -13,11 +7,19 @@ use std::net::SocketAddr;
 use std::rc::Rc;
 use std::str::Utf8Error;
 use std::sync::{Arc, RwLock};
+
+use dashmap::{DashMap, DashSet};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf, ReadHalf, WriteHalf};
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::mpsc::{channel, Receiver, Sender};
+use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf, ReadHalf, WriteHalf};
 use tokio::sync::{mpsc, Mutex};
+use tokio::sync::mpsc::{channel, Receiver, Sender};
+
+use crate::protocol::{Frame, MessageType};
+
+mod codec;
+mod protocol;
+mod result;
 
 #[derive(Debug, Clone)]
 struct TopicSender {
@@ -46,11 +48,8 @@ async fn main() -> crate::result::Result<()> {
         .unwrap_or_else(|| "0.0.0.0:8889".to_string());
 
     let listener = TcpListener::bind(&addr).await?;
-
     // topics and list of mpsc senders backed by sockets.
     // TODO need to clean up disconnected clients!
-    // let state: Arc<DashMap<String, DashSet<TopicSender>>> = Arc::new(DashMap::default());
-    // let state: Arc<RwLock<HashMap<String, Arc<RwLock<HashSet<TopicSender>>>>>> = Arc::new(RwLock::new(HashMap::default()));
 
     let (tx, mut rx): (Sender<protocol::Frame>, Receiver<protocol::Frame>) = mpsc::channel(128);
 
@@ -77,8 +76,8 @@ async fn main() -> crate::result::Result<()> {
                                         Some(format!("{:?}", msg_type)),
                                         sender.clone(),
                                     ))
-                                    .await;
-                                // let lock = state.read().unwrap(); // fixme unsafe unwrap
+                                    .await.expect("something went sideways...");
+
                                 match state.get(&*topic) {
                                     None => {
                                         println!("publishing to topic with no subscribers");
@@ -99,14 +98,6 @@ async fn main() -> crate::result::Result<()> {
                                         }
                                     }
                                 }
-
-                                // if state.contains_key(&*topic) {
-                                //     for rcv in rcvs.iter() {
-                                //         rcv.send(frame.clone()); // todo - put the frame in an arc to prevent necessity of clones.
-                                //     }
-                                // } else {}
-
-                                // let rcvs: DashSet<_> = state.get_or_insert(topic, DashSet::new());
                             }
                             MessageType::SUB => {
                                 sender
@@ -118,20 +109,15 @@ async fn main() -> crate::result::Result<()> {
                                         Some(format!("{:?}", msg_type)),
                                         sender.clone(),
                                     ))
-                                    .await;
+                                    .await.expect("shit went sideways"); // This should never happen.
                                 println!("subscribing");
 
-                                // let mut lock = state.write().unwrap(); // fixme unsafe unwrap
                                 if !state.contains_key(&*topic.clone()) {
                                     state.insert(topic.clone(), HashSet::new());
                                 }
-                                // let lock = state.write().unwrap(); // fixme unsafe unwrap
                                 let mut rcvs = state.get_mut(&*topic.clone()).unwrap(); // safe unwrap!
                                 rcvs.insert(sender.clone());
                             }
-                            // MessageType::UPDATE => {}
-                            // MessageType::OK => {}
-                            // MessageType::ERROR => {}
                             _ => {}
                         }
                     }
@@ -162,12 +148,6 @@ async fn main() -> crate::result::Result<()> {
         tokio::spawn(async move {
             loop {
                 if let Some(frame) = reply_rx.recv().await {
-                    println!("here");
-                    println!("trying to send message: :{:?}", frame.0);
-                    // replies w/ a response to the request. Some examples:
-                    // "OK SUB $topic"
-                    // "ERROR SUB $topic $error_message"
-                    // "UPDATE $topic $new_state"
                     socket_write
                         .write_all(
                             format!(
@@ -199,10 +179,8 @@ async fn main() -> crate::result::Result<()> {
                     .await
                     .expect("failed to read data from socket (disconnect)");
 
-                println!("got {:?} characters", message_size);
-
                 if message_size < 2 {
-                    // Likely a FIN was ACK'd. On OSX, the socket advertises a single byte read (4).
+                    // Likely a FIN was ACK'd. On OSX, the socket advertises a single byte read (0x4).
                     println!("closing connection");
                     return;
                 }
@@ -213,155 +191,10 @@ async fn main() -> crate::result::Result<()> {
                     Ok(frame) => {
                         println!("got a frame {:?}", frame.0.clone());
                         tx.send(frame).await;
-                        // if let Frame(msg_type, topic, content, sender) = frame {
-                        //     match msg_type {
-                        //         MessageType::PUB => {
-                        //             let lock = state.read().unwrap(); // fixme unsafe unwrap
-                        //             match lock.get(&*topic) {
-                        //                 None => {
-                        //                     println!("publishing to topic with no subscribers");
-                        //                     // we don't currently care if there aren't subscribers as we don't maintain state.
-                        //                 }
-                        //                 Some(_) => {
-                        //
-                        //                 }
-                        //             }
-                        //
-                        //             if lock.contains_key(&*topic) {
-                        //                 for rcv in rcvs.iter() {
-                        //                     rcv.send(frame.clone()); // todo - put the frame in an arc to prevent necessity of clones.
-                        //                 }
-                        //             } else {
-                        //
-                        //             }
-                        //
-                        //
-                        //
-                        //             // let rcvs: DashSet<_> = state.get_or_insert(topic, DashSet::new());
-                        //
-                        //
-                        //         }
-                        //         MessageType::SUB => {
-                        //             let mut lock = state.write().unwrap(); // fixme unsafe unwrap
-                        //             if !lock.contains_key(&*topic) {
-                        //                 lock.insert(topic, Arc::new(RwLock::new(HashSet::new())));
-                        //             }
-                        //             // let lock = state.write().unwrap(); // fixme unsafe unwrap
-                        //             // let rcvs: DashSet<_> = state.get_or_insert(topic, DashSet::new());
-                        //             // rcvs.insert(topic_sender.clone());
-                        //         }
-                        //         // MessageType::UPDATE => {}
-                        //         // MessageType::OK => {}
-                        //         // MessageType::ERROR => {}
-                        //         _ => {}
-                        //     }
-                        //
-                        //     sender.sender.send(Frame(MessageType::OK, topic.clone(), Some(format!("{:?}", msg_type)), topic_sender.clone())).await;
-                        // }
                     }
                     Err(e) => println!("ignoring line due to error: {:?}", e),
                 };
             }
         });
     }
-}
-
-fn process_message(msg: &str) -> () {}
-
-/// Shorthand for the transmit half of the message channel.
-type Tx = mpsc::UnboundedSender<String>;
-
-/// Shorthand for the receive half of the message channel.
-type Rx = mpsc::UnboundedReceiver<String>;
-//
-// async fn process(socket: TcpStream) -> crate::result::Result<String> {
-//     println!("here!");
-//     // The `Connection` lets us read/write redis **frames** instead of
-//     // byte streams. The `Connection` type is defined by mini-redis.
-//     // let mut connection = Connection::new(socket);
-//     //
-//     // if let Some(frame) = connection.read_frame().await.unwrap() {
-//     //     println!("GOT: {:?}", frame);
-//     //
-//     //     Respond with an error
-//         // let response = Frame::Error("unimplemented".to_string());
-//         // connection.write_frame(&response).await.unwrap();
-//     // }
-//     Ok("Ok".into())
-// }
-
-/// Process an individual chat client
-async fn process(
-    state: Arc<DashMap<String, String>>,
-    stream: TcpStream,
-    addr: SocketAddr,
-) -> crate::result::Result<String> {
-    //     let mut lines = Framed::new(stream, LinesCodec::new());
-    //
-    //     // Send a prompt to the client to enter their username.
-    //     lines.send("Please enter your username:").await?;
-    //
-    //     // Read the first line from the `LineCodec` stream to get the username.
-    //     let username = match lines.next().await {
-    //         Some(Ok(line)) => line,
-    //         // We didn't get a line so we return early here.
-    //         _ => {
-    //             tracing::error!("Failed to get username from {}. Client disconnected.", addr);
-    //             return Ok(());
-    //         }
-    //     };
-    //
-    //     // Register our peer with state which internally sets up some channels.
-    //     let mut peer = Peer::new(state.clone(), lines).await?;
-    //
-    //     // A client has connected, let's let everyone know.
-    //     {
-    //         let mut state = state.lock().await;
-    //         let msg = format!("{} has joined the chat", username);
-    //         tracing::info!("{}", msg);
-    //         state.broadcast(addr, &msg).await;
-    //     }
-    //
-    //     // Process incoming messages until our stream is exhausted by a disconnect.
-    //     loop {
-    //         tokio::select! {
-    //             // A message was received from a peer. Send it to the current user.
-    //             Some(msg) = peer.rx.recv() => {
-    //                 peer.lines.send(&msg).await?;
-    //             }
-    //             result = peer.lines.next() => match result {
-    //                 // A message was received from the current user, we should
-    //                 // broadcast this message to the other users.
-    //                 Some(Ok(msg)) => {
-    //                     let mut state = state.lock().await;
-    //                     let msg = format!("{}: {}", username, msg);
-    //
-    //                     state.broadcast(addr, &msg).await;
-    //                 }
-    //                 // An error occurred.
-    //                 Some(Err(e)) => {
-    //                     tracing::error!(
-    //                         "an error occurred while processing messages for {}; error = {:?}",
-    //                         username,
-    //                         e
-    //                     );
-    //                 }
-    //                 // The stream has been exhausted.
-    //                 None => break,
-    //             },
-    //         }
-    //     }
-    //
-    //     // If this section is reached it means that the client was disconnected!
-    //     // Let's let everyone still connected know about it.
-    //     {
-    //         let mut state = state.lock().await;
-    //         state.peers.remove(&addr);
-    //
-    //         let msg = format!("{} has left the chat", username);
-    //         tracing::info!("{}", msg);
-    //         state.broadcast(addr, &msg).await;
-    //     }
-    println!("here!");
-    Ok("Ok".into())
 }
