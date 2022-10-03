@@ -17,7 +17,6 @@ use tokio::sync::mpsc::{channel, Receiver, Sender};
 
 use crate::protocol::{Frame, MessageType};
 
-mod codec;
 mod protocol;
 mod result;
 
@@ -41,6 +40,8 @@ impl PartialEq for TopicSender {
 
 impl Eq for TopicSender {}
 
+/// You can pass in the listening host/port as a parameter
+/// or else it will use port 8889.
 #[tokio::main]
 async fn main() -> crate::result::Result<()> {
     let addr: String = env::args()
@@ -48,8 +49,7 @@ async fn main() -> crate::result::Result<()> {
         .unwrap_or_else(|| "0.0.0.0:8889".to_string());
 
     let listener = TcpListener::bind(&addr).await?;
-    // topics and list of mpsc senders backed by sockets.
-    // TODO need to clean up disconnected clients!
+    // FIXME - has a leak - needs to clean up disconnected clients!
 
     let (tx, mut rx): (Sender<protocol::Frame>, Receiver<protocol::Frame>) = mpsc::channel(128);
 
@@ -76,15 +76,10 @@ async fn main() -> crate::result::Result<()> {
                                         Some(format!("{:?}", msg_type)),
                                         sender.clone(),
                                     ))
-                                    .await.expect("something went sideways...");
+                                    .await.expect("something went sideways..."); // will never happen
 
                                 match state.get(&*topic) {
-                                    None => {
-                                        println!("publishing to topic with no subscribers");
-                                        // we don't currently care if there aren't subscribers as we don't maintain state.
-                                    }
                                     Some(subscribers) => {
-                                        println!("publishing to topic with subscribers");
                                         let update_frame = Frame(
                                             MessageType::UPDATE,
                                             topic,
@@ -94,9 +89,10 @@ async fn main() -> crate::result::Result<()> {
                                         for rcv in subscribers.iter() {
                                             println!("sending {:?} {:?}", rcv.id, msg_type);
                                             rcv.sender.send(update_frame.clone()).await;
-                                            // todo - put the frame in an arc to prevent necessity of clones.
                                         }
                                     }
+                                    None => {} // we don't care if there aren't subscribers as we don't maintain state.
+
                                 }
                             }
                             MessageType::SUB => {
@@ -109,8 +105,7 @@ async fn main() -> crate::result::Result<()> {
                                         Some(format!("{:?}", msg_type)),
                                         sender.clone(),
                                     ))
-                                    .await.expect("shit went sideways"); // This should never happen.
-                                println!("subscribing");
+                                    .await.expect("something went sideways"); // This should never happen.
 
                                 if !state.contains_key(&*topic.clone()) {
                                     state.insert(topic.clone(), HashSet::new());
@@ -134,7 +129,6 @@ async fn main() -> crate::result::Result<()> {
         let (mut socket, _): (TcpStream, _) = listener.accept().await?;
         let (mut socket_read, mut socket_write): (OwnedReadHalf, OwnedWriteHalf) =
             socket.into_split();
-        // let state = state.clone();
         let tx = tx.clone();
 
         let (reply_tx, mut reply_rx): (Sender<Frame>, Receiver<Frame>) = mpsc::channel(128);
@@ -187,12 +181,10 @@ async fn main() -> crate::result::Result<()> {
 
                 // note: we drop the newline character here.
                 match Frame::new(&buf[0..message_size - 2], topic_sender.clone()) {
-                    // todo sender in arc.
                     Ok(frame) => {
-                        println!("got a frame {:?}", frame.0.clone());
-                        tx.send(frame).await;
+                        tx.send(frame).await.expect("something went really sideways")
                     }
-                    Err(e) => println!("ignoring line due to error: {:?}", e),
+                    Err(e) => println!("error: [{:?}]", e),
                 };
             }
         });
