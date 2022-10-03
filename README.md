@@ -1,16 +1,14 @@
 # topics-rs
 A redis-pub/sub-inspired Rust demo/project showing an in memory topic store that publishes updates to consumers.
 
-This project is a demonstration only and is not intended for production use.
+This project is a demonstration, not intended for production use.
 See REDIS if you need something similar as the channels and pub/sub features are well developed.
 
 # Usage
-
 The server listens on `0.0.0.0:8889` by default, or you can pass in a single argument when starting the application:
 `cargo run 127.0.0.1:7777`
 
 ## How To Follow Along
-
 You can test the server by using `telnet`.
 (you may need to brew install telnet)
 https://formulae.brew.sh/formula/telnet
@@ -110,3 +108,11 @@ https://github.com/tokio-rs/tokio/issues/2376
 
 Teams will often run into this when trying to use a sync server and internally using async code.
 The servers need to use spawn_blocking for async to be utilized within the thread so consumers of sync servers will run into it a lot.
+
+# Wait, Why No Tests? What about Metrics?
+This application is such a succinct example I and is easily verified correct.
+I'll probably add some at some point :)
+It would be easy to instrument and collect metrics efficiently. 
+
+Feel free to fork or provide pr.
+Rust is AWESOME.

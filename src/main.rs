@@ -10,10 +10,10 @@ use std::sync::{Arc, RwLock};
 
 use dashmap::{DashMap, DashSet};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::{TcpListener, TcpStream};
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf, ReadHalf, WriteHalf};
-use tokio::sync::{mpsc, Mutex};
+use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc::{channel, Receiver, Sender};
+use tokio::sync::{mpsc, Mutex};
 
 use crate::protocol::{Frame, MessageType};
 
@@ -57,13 +57,13 @@ async fn main() -> crate::result::Result<()> {
         // spawn a task to receive messages for the pub/sub engine.
         tokio::spawn(async move {
             // no locking abstractions are needed as there is a single thread for the core engine.
-            // This prevents any contention and will be significantly faster than trying to manage across cores.
+            // This prevents any contention and will be faster than trying to manage locks.
+            // Simple and to the point.
             // We can still parallelize sending of the messages tho to ensure it's extremely fast.
             let mut state: HashMap<String, HashSet<Arc<TopicSender>>> = HashMap::default();
 
             loop {
                 if let Some(frame) = rx.recv().await {
-                    println!("got a msg on core");
                     if let Frame(msg_type, topic, content, sender) = frame.clone() {
                         match msg_type {
                             MessageType::PUB => {
@@ -76,7 +76,8 @@ async fn main() -> crate::result::Result<()> {
                                         Some(format!("{:?}", msg_type)),
                                         sender.clone(),
                                     ))
-                                    .await.expect("something went sideways..."); // will never happen
+                                    .await
+                                    .expect("something went sideways..."); // should never happen
 
                                 match state.get(&*topic) {
                                     Some(subscribers) => {
@@ -87,12 +88,13 @@ async fn main() -> crate::result::Result<()> {
                                             sender.clone(),
                                         );
                                         for rcv in subscribers.iter() {
-                                            println!("sending {:?} {:?}", rcv.id, msg_type);
-                                            rcv.sender.send(update_frame.clone()).await;
+                                            rcv.sender
+                                                .send(update_frame.clone())
+                                                .await
+                                                .expect("socket error");
                                         }
                                     }
                                     None => {} // we don't care if there aren't subscribers as we don't maintain state.
-
                                 }
                             }
                             MessageType::SUB => {
@@ -105,7 +107,8 @@ async fn main() -> crate::result::Result<()> {
                                         Some(format!("{:?}", msg_type)),
                                         sender.clone(),
                                     ))
-                                    .await.expect("something went sideways"); // This should never happen.
+                                    .await
+                                    .expect("something went sideways"); // This should never happen.
 
                                 if !state.contains_key(&*topic.clone()) {
                                     state.insert(topic.clone(), HashSet::new());
@@ -123,7 +126,7 @@ async fn main() -> crate::result::Result<()> {
         });
     }
 
-    // Codec implementation. Should be modelled as such.
+    // Codec implementation. This could be modelled as the project grows.
     // Reads lines from the socket async into Frames which are then processed.
     loop {
         let (mut socket, _): (TcpStream, _) = listener.accept().await?;
@@ -131,7 +134,7 @@ async fn main() -> crate::result::Result<()> {
             socket.into_split();
         let tx = tx.clone();
 
-        let (reply_tx, mut reply_rx): (Sender<Frame>, Receiver<Frame>) = mpsc::channel(128);
+        let (reply_tx, mut reply_rx): (Sender<Frame>, Receiver<Frame>) = channel(128);
 
         let topic_sender = Arc::new(TopicSender {
             id: uuid::Uuid::new_v4().to_string(),
@@ -175,15 +178,15 @@ async fn main() -> crate::result::Result<()> {
 
                 if message_size < 2 {
                     // Likely a FIN was ACK'd. On OSX, the socket advertises a single byte read (0x4).
-                    println!("closing connection");
                     return;
                 }
 
-                // note: we drop the newline character here.
+                // note: we drop the newline bytes here.
                 match Frame::new(&buf[0..message_size - 2], topic_sender.clone()) {
-                    Ok(frame) => {
-                        tx.send(frame).await.expect("something went really sideways")
-                    }
+                    Ok(frame) => tx
+                        .send(frame)
+                        .await
+                        .expect("something went really sideways"),
                     Err(e) => println!("error: [{:?}]", e),
                 };
             }
