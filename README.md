@@ -10,10 +10,29 @@ See REDIS if you need something similar as the channels and pub/sub features are
 # Usage
 
 The server listens on `0:0:0:0:8889` by default, or you can pass in a single argument when starting the application:
-
 `cargo run 127.0.0.1:7777`
 
+## How To Follow Along
+
+You can test the server by using eg `telnet` as it's not installed by default anymore.
+DYOR on the security implications.
+
+https://formulae.brew.sh/formula/telnet
+
+Once you have telnet installed, you can connect to the server like so via terminal:
+
+`telnet 127.0.0.1 8889`
+
+Then you can issue commands:
+
+`SUB mytopic`
+`PUB mytopic a message`
+
+You should see the response:
+
 ## Protocol
+
+
 This uses tokio for async, and stays away from any heavy abstractions like actors.
 It uses mpsc to manage connections to topics.
 
@@ -34,32 +53,29 @@ The only messages back over the wire are as follows:
 
 `UPDATED $topic $message`
 
-## How To Interact
-
-You can test the server by using eg `telnet` as it's not installed by default anymore.
-DYOR on the security implications.
-
-https://formulae.brew.sh/formula/telnet
-
-Once you have telnet installed, you can connect to the server like so:
-
-`telnet 127.0.0.1 8889`
-
-Then you can issue commands:
-
-`SUB mytopic`
-`PUB mytopic a message`
-
-You should see the response:
-
-`UPDATED mytopic a message`
-
 # Design
 Each connection feeds messages to a single thread to maintain ordering.
+There is a lock-free core task loop that will read requests and reply with updates to listener tasks.
+This is done in a non-blocking fashion to require a small resource footprint while maintaining asynchrony at the expense of needing the Tokio runtime in the project.
+These trade-offs are well considered and I feel this is a good seed project for most any related use case.
+I could be sharded and scaled to improve resource utilization depending on the use cases. It'll be very, very fast tho so only extreme applications would need to 
+consider moving in that direction.
+
+At the core, there are three areas of interest:
+- At the core, a single thread will process all activity to channels.
+- The receiver loop will receive a connection and use mpsc for asynchronous communication
+
 The thread will send requests over mpsc to topics where messages can be serially processed by each topic.
 The topics will asynchronously return updates on any change to the main server thread, where the messages are dispatched async
 back to any connections listening.
-Each topic is gaurded by an RW lock
+Each topic is guarded by an RW lock
+
+## Outstanding Issues
+There are a couple areas that I can see need some addressing:
+
+### Connection Leaks!
+There isn't any cleanup of the old connections. 
+This project needs to signal to the core tread when someone is done.
 
 # Observations and notes on Rust usage...
 As the intention for this project was to get un-rusty, I was able to capture 
