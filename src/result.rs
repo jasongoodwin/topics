@@ -1,4 +1,3 @@
-use std::error::Error;
 use std::result::Result as StdResult;
 
 /// Result is an type alias for a Result<T, Error> to reduce type noise.

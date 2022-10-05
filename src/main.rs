@@ -1,19 +1,14 @@
-use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::env;
 use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
-use std::net::SocketAddr;
-use std::rc::Rc;
-use std::str::Utf8Error;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
-use dashmap::{DashMap, DashSet};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf, ReadHalf, WriteHalf};
+use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 use tokio::net::{TcpListener, TcpStream};
+use tokio::sync::mpsc;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
-use tokio::sync::{mpsc, Mutex};
 
 use crate::protocol::{Frame, MessageType};
 
@@ -63,61 +58,55 @@ async fn main() -> crate::result::Result<()> {
             let mut state: HashMap<String, HashSet<Arc<TopicSender>>> = HashMap::default();
 
             loop {
-                if let Some(frame) = rx.recv().await {
-                    if let Frame(msg_type, topic, content, sender) = frame.clone() {
-                        match msg_type {
-                            MessageType::PUB => {
-                                sender
-                                    .clone()
-                                    .sender
-                                    .send(Frame(
-                                        MessageType::OK,
-                                        topic.clone(),
-                                        Some(format!("{:?}", msg_type)),
-                                        sender.clone(),
-                                    ))
-                                    .await
-                                    .expect("something went sideways..."); // should never happen
+                if let Some(Frame(msg_type, topic, content, sender)) = rx.recv().await {
+                    match msg_type {
+                        MessageType::PUB => {
+                            sender
+                                .clone()
+                                .sender
+                                .send(Frame(
+                                    MessageType::OK,
+                                    topic.clone(),
+                                    Some(format!("{:?}", msg_type)),
+                                    sender.clone(),
+                                ))
+                                .await
+                                .expect("something went sideways..."); // should never happen
 
-                                match state.get(&*topic) {
-                                    Some(subscribers) => {
-                                        let update_frame = Frame(
-                                            MessageType::UPDATE,
-                                            topic,
-                                            content,
-                                            sender.clone(),
-                                        );
-                                        for rcv in subscribers.iter() {
-                                            rcv.sender
-                                                .send(update_frame.clone())
-                                                .await
-                                                .expect("socket error");
-                                        }
+                            match state.get(&*topic) {
+                                Some(subscribers) => {
+                                    let update_frame =
+                                        Frame(MessageType::UPDATE, topic, content, sender.clone());
+                                    for rcv in subscribers.iter() {
+                                        rcv.sender
+                                            .send(update_frame.clone())
+                                            .await
+                                            .expect("socket error");
                                     }
-                                    None => {} // we don't care if there aren't subscribers as we don't maintain state.
                                 }
+                                None => {} // we don't care if there aren't subscribers as we don't maintain state.
                             }
-                            MessageType::SUB => {
-                                sender
-                                    .clone()
-                                    .sender
-                                    .send(Frame(
-                                        MessageType::OK,
-                                        topic.clone(),
-                                        Some(format!("{:?}", msg_type)),
-                                        sender.clone(),
-                                    ))
-                                    .await
-                                    .expect("something went sideways"); // This should never happen.
-
-                                if !state.contains_key(&*topic.clone()) {
-                                    state.insert(topic.clone(), HashSet::new());
-                                }
-                                let mut rcvs = state.get_mut(&*topic.clone()).unwrap(); // safe unwrap!
-                                rcvs.insert(sender.clone());
-                            }
-                            _ => {}
                         }
+                        MessageType::SUB => {
+                            sender
+                                .clone()
+                                .sender
+                                .send(Frame(
+                                    MessageType::OK,
+                                    topic.clone(),
+                                    Some(format!("{:?}", msg_type)),
+                                    sender.clone(),
+                                ))
+                                .await
+                                .expect("something went sideways"); // This should never happen.
+
+                            if !state.contains_key(&*topic.clone()) {
+                                state.insert(topic.clone(), HashSet::new());
+                            }
+                            let rcvs = state.get_mut(&*topic.clone()).unwrap(); // safe unwrap!
+                            rcvs.insert(sender.clone());
+                        }
+                        _ => {}
                     }
                 } else {
                     println!("[None] received by topics task");
@@ -129,7 +118,7 @@ async fn main() -> crate::result::Result<()> {
     // Codec implementation. This could be modelled as the project grows.
     // Reads lines from the socket async into Frames which are then processed.
     loop {
-        let (mut socket, _): (TcpStream, _) = listener.accept().await?;
+        let (socket, _): (TcpStream, _) = listener.accept().await?;
         let (mut socket_read, mut socket_write): (OwnedReadHalf, OwnedWriteHalf) =
             socket.into_split();
         let tx = tx.clone();

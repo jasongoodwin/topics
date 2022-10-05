@@ -1,10 +1,7 @@
 use crate::protocol::MessageType::{PUB, SUB};
 use crate::result::{InvalidMessage, Result};
 use crate::TopicSender;
-use std::fmt::Error;
 use std::sync::Arc;
-use tokio::net::TcpStream;
-use tokio::sync::mpsc::Sender;
 
 #[derive(Debug, Clone)]
 pub(crate) enum MessageType {
