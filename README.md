@@ -116,3 +116,11 @@ It would be easy to instrument and collect metrics efficiently.
 
 Feel free to fork or provide pr.
 Rust is AWESOME.
+
+# Linting?
+Run `cargo clippy` to get some extra linting...
+
+Yes the project has pretty much 0 warnings, yet there are a small number of clippy warnings left.
+To verify, run `cargo clippy`. You'll see that there are a few warning on the ENUM capitalization which can be fixed,
+but it's kept this way just to be similar to the redis protocol for now.
+Not really feeling opinionated right now but should fix.

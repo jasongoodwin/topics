@@ -42,7 +42,7 @@ impl Frame {
     pub fn new(raw_msg: &[u8], sender: Arc<TopicSender>) -> Result<Frame> {
         let msg = std::str::from_utf8(raw_msg)?; // convert msg into str without the newline.
 
-        match msg.split_once(" "){
+        match msg.split_once(' '){
             Some((typ, rest))=> {
                 match MessageType::new(typ)?{
                     PUB => {
