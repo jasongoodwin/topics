@@ -24,6 +24,9 @@ Then you can issue space delimited commands:
 
 You should see the responses.
 
+Kick up a couple consoles and test this!
+Benchmarks pending still but this project will absolutely shine against competitors, even given its youth.
+
 ## Protocol
 This uses tokio's reactor for async.
 It uses mpsc to manage connections to topics.
