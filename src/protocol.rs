@@ -46,7 +46,7 @@ impl Frame {
             Some((typ, rest))=> {
                 match MessageType::new(typ)?{
                     PUB => {
-                        match rest.split_once(" ") {
+                        match rest.split_once(' ') {
                             None =>
                                 InvalidMessage::new("invalid message format - needs to be in format `PUB $topic $message".to_string()),
                             Some((topic, message)) =>
@@ -60,7 +60,7 @@ impl Frame {
                     }
                     SUB => {
                         // we get the topic and ignore anything after a whitespace.
-                        let topic = rest.split(" ").nth(1).unwrap_or(rest);
+                        let topic = rest.split(' ').nth(1).unwrap_or(rest);
                         Ok(Frame(
                             SUB,
                             topic.into(),

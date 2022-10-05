@@ -139,7 +139,7 @@ async fn main() -> crate::result::Result<()> {
                             format!(
                                 "{:?} {} {}\n",
                                 frame.0,
-                                frame.2.unwrap_or("".into()),
+                                frame.2.unwrap_or_else(|| "".into()),
                                 frame.1
                             )
                             .as_ref(), // TODO refactor to implement in Display.
