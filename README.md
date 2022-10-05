@@ -124,3 +124,7 @@ Yes the project has pretty much 0 warnings, yet there are a small number of clip
 To verify, run `cargo clippy`. You'll see that there are a few warning on the ENUM capitalization which can be fixed,
 but it's kept this way just to be similar to the redis protocol for now.
 Not really feeling opinionated right now but should fix.
+
+An important team-heuristic is to treat all warnings as errors and ensure they don't accumulate!
+This is very very important to keep as a primary goal!
+Lessons learned with rust.
