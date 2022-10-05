@@ -1,7 +1,8 @@
+use std::sync::Arc;
+
 use crate::protocol::MessageType::{PUB, SUB};
 use crate::result::{InvalidMessage, Result};
 use crate::TopicSender;
-use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub(crate) enum MessageType {
@@ -27,7 +28,6 @@ type Content = Option<String>;
 
 /// A frame is a message received off the wire, or replied.
 /// They contain a message type, the topic name, and optional content in string format.
-
 #[derive(Debug, Clone)]
 pub(crate) struct Frame(
     pub MessageType,
