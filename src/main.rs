@@ -1,3 +1,4 @@
+use std::borrow::Borrow;
 use std::collections::{HashMap, HashSet};
 use std::env;
 use std::fmt::Debug;
@@ -13,7 +14,9 @@ use tokio::sync::mpsc::{channel, Receiver, Sender};
 
 use crate::protocol::{Frame, MessageType};
 
+mod codec;
 mod protocol;
+mod pub_sub_topics;
 mod result;
 
 #[derive(Debug, Clone)]
@@ -38,14 +41,10 @@ impl PartialEq for TopicSender {
 }
 
 impl Drop for TopicSender {
+    // drop is implemented only for example and to
+    // demonstrate that the TopicSender is cleaned up appropriately.
     fn drop(&mut self) {
         println!("DEBUG - Client removed from memory! No leaks!: {}", self.id);
-        // self.sender.send(Frame{
-        //     0: MessageType::QUIT,
-        //     1: "".to_string(),
-        //     2: None,
-        //     3: Arc::new(*self)
-        // })
     }
 }
 
@@ -127,6 +126,7 @@ async fn main() -> crate::result::Result<()> {
                             // Cleanup the connections on disconnect.
                             // TODO this is O(n) where n is topics.
                             // Can be made linear to subscribed topics by keeping a reverse lookup
+                            // TODO leak - drop empty topics!
                             sender
                                 .clone()
                                 .sender
@@ -175,15 +175,7 @@ async fn main() -> crate::result::Result<()> {
             loop {
                 if let Some(frame) = reply_rx.recv().await {
                     socket_write
-                        .write_all(
-                            format!(
-                                "{:?} {} {}\n",
-                                frame.0,
-                                frame.2.unwrap_or_else(|| "".into()),
-                                frame.1
-                            )
-                            .as_ref(), // TODO refactor to implement in Display.
-                        )
+                        .write_all(&*frame.encode())
                         .await
                         .expect("failed to write frame back to socket");
 
@@ -213,8 +205,8 @@ async fn main() -> crate::result::Result<()> {
                 if message_size < 2 {
                     println!("disconnect received");
                     // Likely a FIN was ACK'd. On OSX, the socket advertises a single byte read (0x4).
+                    // TODO move to the codec.
                     tx.send(Frame {
-                        // TODO move to a method on `Frame`
                         0: MessageType::QUIT,
                         1: "".to_string(),
                         2: None,
@@ -226,9 +218,9 @@ async fn main() -> crate::result::Result<()> {
                     return;
                 }
 
-                // note: we drop the newline bytes here.
-                match Frame::new(&buf[0..message_size - 2], topic_sender.clone()) {
-                    Ok(frame) if frame.0 == QUIT => {
+                // note: we drop the newline bytes here. TODO move that to the codec.
+                match Frame::decode(&buf[0..message_size - 2], topic_sender.clone()) {
+                    Ok(frame) if frame.borrow().0.borrow() == &QUIT => {
                         println!("quit");
                         tx.send(frame)
                             .await
