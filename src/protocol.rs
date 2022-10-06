@@ -131,36 +131,12 @@ mod tests {
     }
 
     #[test]
-    fn frame_should_decode_sub_with_trailing_info() {
-        let (tx, mut rx): (Sender<Frame>, Receiver<Frame>) = mpsc::channel(128);
-        let topic_sender = TopicSender::new(tx);
-
-        let Frame(message_type, topic, content, sender) =
-            Frame::decode("SUB topic extra garbage".as_ref(), topic_sender).unwrap();
-        assert_eq!(message_type, MessageType::SUB);
-        assert_eq!(topic, "topic");
-        assert_eq!(content, None);
-    }
-
-    #[test]
     fn frame_should_decode_quit() {
         let (tx, mut rx): (Sender<Frame>, Receiver<Frame>) = mpsc::channel(128);
         let topic_sender = TopicSender::new(tx);
 
         let Frame(message_type, topic, content, sender) =
             Frame::decode("QUIT".as_ref(), topic_sender).unwrap();
-        assert_eq!(message_type, MessageType::QUIT);
-        assert_eq!(topic, "");
-        assert_eq!(content, None);
-    }
-
-    #[test]
-    fn frame_should_decode_quit_with_trailing_info() {
-        let (tx, mut rx): (Sender<Frame>, Receiver<Frame>) = mpsc::channel(128);
-        let topic_sender = TopicSender::new(tx);
-
-        let Frame(message_type, topic, content, sender) =
-            Frame::decode("QUIT yo".as_ref(), topic_sender).unwrap();
         assert_eq!(message_type, MessageType::QUIT);
         assert_eq!(topic, "");
         assert_eq!(content, None);
