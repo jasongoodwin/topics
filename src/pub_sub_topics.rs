@@ -1,6 +1,7 @@
-use crate::{Frame, MessageType, TopicSender};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+
+use crate::{Frame, MessageType, TopicSender};
 
 /// Manages the topics and subscribers.
 /// This struct will hold the pub/sub TopicSender which contains a channel.
