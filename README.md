@@ -75,6 +75,10 @@ Each topic is guarded by an RW lock
 ## Outstanding Issues/Optimizations
 There are a couple areas that I can see need some addressing:
 
+### TEST
+The project is a bit hacked together still - it needs to be covered.
+Good example project, but it needs factoring and tests at this point.
+
 ### Provide ERROR back to client
 If invalid formats are provided, the server prints a message but doesn't reply to the client.
 
@@ -90,8 +94,11 @@ There is an opportunity for further improved performance by not awaiting replies
 There are currently some awaits but this can be parallelized to keep the core thread free.
 
 ### Connection Leaks! [FIXED] 
-Any subscriptions are cleaned up - can be made a bit more effifient but it's O(n) on number of topics to clean up.
+Any subscriptions are cleaned up - can be made a bit more efficient - it's O(n) on number of topics to clean up.
 Drop is implemented to print to demonstrate this works as expected. 
+
+### Empty topic leak
+When cleaning up subscriptions, topics should be emptied.
 
 ### QUIT should disconnect
 QUIT is partially implemented now.
