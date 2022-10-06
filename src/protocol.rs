@@ -26,8 +26,11 @@ impl MessageType {
 type Topic = String;
 type Content = Option<String>;
 
-/// A frame is a message received off the wire, or replied.
+/// A frame is a message received off the wire, or replied. This is a codec.
 /// They contain a message type, the topic name, and optional content in string format.
+/// The frame is also the codec implementation.
+/// It may be more efficient to use the tokio codec to stream bytes rather than passing arrays.
+/// First pass, but this is pretty easy to understand.
 #[derive(Debug, Clone)]
 pub(crate) struct Frame(
     pub MessageType,
@@ -37,13 +40,33 @@ pub(crate) struct Frame(
 );
 
 impl Frame {
-    /// new parses bytes into a Result<Frame>
+    /// encode returns a frame as a set of bytes.
+    pub fn encode(&self) -> Vec<u8> {
+        // Just builds a String 'TYPE TOPIC CONTENT' and returns the referenced byte array.
+        // bit more complex than needed but ensures no insignificant whitespace.
+
+        // add the message_type
+        let mut message: String = format!("{:?}", self.0);
+        // add the topic
+        if self.2.is_some() {
+            message = message + &*format!(" {}", self.2.as_ref().unwrap())
+        }
+        // add the content
+        if !self.1.is_empty() {
+            message = message + &*format!(" {}", self.1)
+        }
+        message = message + "\n";
+        message.as_bytes().to_owned()
+    }
+
+    /// decodes bytes into a Result<Frame>
     /// Errors are generally of type InvalidMessage
-    pub fn new(raw_msg: &[u8], sender: Arc<TopicSender>) -> Result<Frame> {
+    /// TODO[2022/Oct/05] First iteration is getting outgrown - Would be a lot cleaner to stream through the bytes instead of splitting.
+    pub fn decode(raw_msg: &[u8], sender: Arc<TopicSender>) -> Result<Frame> {
         let msg = std::str::from_utf8(raw_msg)?; // convert msg into str without the newline.
 
-        // TODO this can probably be improved: after adding "QUIT" message, you can see there may be no spaces after the command.
         match msg.split_once(' ') {
+            _ if msg.to_uppercase() == "QUIT" => Ok(Frame(QUIT, "".to_string(), None, sender)),
             Some((typ, rest)) => {
                 match MessageType::new(typ)? {
                     PUB => match rest.split_once(' ') {
@@ -68,13 +91,18 @@ impl Frame {
             }
 
             None => {
-                if msg.to_uppercase() == "QUIT" {
-                    Ok(Frame(QUIT, "".to_string(), None, sender))
-                } else {
-                    println!("msg: {}", msg);
-                    InvalidMessage::new( "invalid message format - needs to be in format `PUB $topic` or `SUB $topic $optional_parameters".to_string())
-                }
+                println!("msg: {}", msg);
+                InvalidMessage::new( "invalid message format - needs to be in format `PUB $topic` or `SUB $topic $optional_parameters".to_string())
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn it_works() {
+        let result = 2 + 2;
+        assert_eq!(result, 4);
     }
 }

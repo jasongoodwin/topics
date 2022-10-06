@@ -1,7 +1,8 @@
 # topics-rs
 A redis-pub/sub-inspired Rust demo/project showing an in memory topic store that publishes updates to consumers.
 
-This project is a demonstration, not intended for production use.
+This project is a demonstration and for us to learn together!
+It's not intended for production use currently, although would be a good seed project.
 See REDIS if you need something similar as the channels and pub/sub features are well developed.
 
 ## Status
@@ -56,6 +57,10 @@ Replies are provided to the socket - because the server has some asynchrony, it 
 `OK SUB top1`
 
 # Design
+The tokio codec/Encoder/Decoder are not used at the moment - this uses mostly bare rust.
+An alternative design would use streams w/ the Tokio codec. 
+See: https://docs.rs/tokio/0.1.22/tokio/codec/index.html
+
 Each connection feeds messages to a single thread to maintain ordering.
 There is a lock-free core task loop that will read requests and reply with updates to listener tasks.
 This is done in a non-blocking fashion to require a small resource footprint while maintaining some asynchrony at the expense of needing the Tokio runtime in the project.
@@ -155,9 +160,65 @@ Use clippy and try to get compiler and `clippy` errors/warnings down to 0.
 It's an important team heuristic to do early and often, linking this into CI if possible.
 See: https://dev.to/cloudx/rust-and-the-hidden-cargo-clippy-2a2e
 
+## "Speculative Generality" and Traits - Be careful with your OO paradigms
+See Fowler's refactoring and the smell called "Speculative Generality" - the cost can be high in rust of trying to be general.
+
+Due to the fact that trait size can't be known at compile time, utilizing traits can introduce a lot of boxing and harm readability.
+You have to use dynamic dispatching, and it can just generally create a headache.
+
+One of the mistakes I made early on in my rust usage was over-use of traits to avoid concrete implementations.
+While this kind of approach is widely used in OO languages, in rust you may not need to do so (see the next point.)
+It can seem to make testing easier, but there are some ways to get around this like having `#[cfg[test]]` blocks.
+As an avid OO and FP person, it took me a while to find a good balance in rust.
+Keep it simple until it's clearly worth paying the cost for the abstractions in rust.
+
+## Stubs Without Traits?
+One of the big reasons I was bullish in trying to abstract everything was to keep things in memory for test to have real unit tests.
+There are some libraries that can swap implementations at run/test time, but I'd recommend you think about changing the 
+imports w/ `#[cfg(test)]` and `#[cfg(not(test))]` annotations on the imports first.
+This approach often really works and can avoid a lot of complexity. 
+
+Eg:
+```rust
+#[cfg(test)]
+use my_test_repo::MyTestRepo as MyRealRepo;
+#[cfg(not(test))]
+use my_real_repo::MyRealRepo;
+```
+
+Because they'll both have the same name, when the code is compiled in test, it'll just point to the other implementation.
+No traits needed. No boxing. No dynamic dispatch.  
+
+If you want mocks, there are a couple crates - namely mockall and mockall-doubles but they can be tricky to use 
+in certain situations - notably mocking external dependencies can be hard and often overcome with design. 
+Eg using a repository instead of directly access a database. This design approach is more "Domain Model" and less "Transaction Script."
+
+See PoEAA from Fowler - Transaction Script vs Domain Model. 
+https://martinfowler.com/eaaCatalog/transactionScript.html
+https://martinfowler.com/eaaCatalog/domainModel.html
+https://lorenzo-dee.blogspot.com/2014/06/quantifying-domain-model-vs-transaction-script.html
+
+You can start with transaction scripts, but as complexity grows, teams will generally iterate toward domain models to better manage complexity.
+
+## Don't fear the rewrite
+"Slow, Imperfect Progress Is Better Than None at All."
+
+One of the lessons for me in more recent years is that it's better to get something working today than it is to be paralyzed by a desire for perfection.
+
+Iterate iterate iterate. You'll sleep and understand and see things without even trying.
+Rust can be especially daunting to learn and work with for a beginner.
+
+It's fine to start with something that works and reconsider the design as complexity grows.
+Don't be worried about getting it perfect the first time.
+This project is a living breathing example of this - I got something together, and it's "developing" daily.
+Feel free to peruse the history to see the design progressing. I didn't even have tests in the first iteration!
+Everything is a work in progress. Socialize these ideas, and make everyone feel comfortable and confident that "we'll get there!"
+It's easy to get paralyzed looking for perfection.
+
+
 # Wait, Why No Tests? What about Metrics? A client?
 I was getting un-rusty so I deferred writing tests - working on it.
-Metrics here will incur some performance cost.
+Metrics here will incur some performance cost. Logging should be removed and/or async.
 Feel free to fork or provide pr.
 Rust is AWESOME.
 

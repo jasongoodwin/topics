@@ -1,10 +1,9 @@
-use std::collections::{HashMap, HashSet};
+use std::borrow::Borrow;
 use std::env;
 use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
-use crate::MessageType::QUIT;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 use tokio::net::{TcpListener, TcpStream};
@@ -13,7 +12,9 @@ use tokio::sync::mpsc::{channel, Receiver, Sender};
 
 use crate::protocol::{Frame, MessageType};
 
+mod codec;
 mod protocol;
+mod pub_sub_topics;
 mod result;
 
 #[derive(Debug, Clone)]
@@ -38,14 +39,10 @@ impl PartialEq for TopicSender {
 }
 
 impl Drop for TopicSender {
+    // drop is implemented only for example and to
+    // demonstrate that the TopicSender is cleaned up appropriately.
     fn drop(&mut self) {
         println!("DEBUG - Client removed from memory! No leaks!: {}", self.id);
-        // self.sender.send(Frame{
-        //     0: MessageType::QUIT,
-        //     1: "".to_string(),
-        //     2: None,
-        //     3: Arc::new(*self)
-        // })
     }
 }
 
@@ -60,102 +57,25 @@ async fn main() -> crate::result::Result<()> {
         .unwrap_or_else(|| "0.0.0.0:8889".to_string());
 
     let listener = TcpListener::bind(&addr).await?;
-    // FIXME - has a leak - needs to clean up disconnected clients!
-    // Can use Drop to signal to the core.
 
     let (tx, mut rx): (Sender<protocol::Frame>, Receiver<protocol::Frame>) = mpsc::channel(128);
 
-    {
-        // spawn a task to receive messages for the pub/sub engine.
-        tokio::spawn(async move {
-            // no locking abstractions are needed as there is a single thread for the core engine.
-            // This prevents any contention and will be faster than trying to manage locks.
-            // Simple and to the point.
-            // We can still parallelize sending of the messages tho to ensure it's extremely fast.
-            let mut state: HashMap<String, HashSet<Arc<TopicSender>>> = HashMap::default();
+    // spawn a task to receive messages for the pub/sub engine.
+    tokio::spawn(async move {
+        let mut pub_sub_topics = pub_sub_topics::PubSubTopics::new();
 
-            loop {
-                if let Some(Frame(msg_type, topic, content, sender)) = rx.recv().await {
-                    match msg_type {
-                        MessageType::PUB => {
-                            sender
-                                .clone()
-                                .sender
-                                .send(Frame(
-                                    MessageType::OK,
-                                    topic.clone(),
-                                    Some(format!("{:?}", msg_type)),
-                                    sender.clone(),
-                                ))
-                                .await
-                                .expect("something went sideways..."); // should never happen
-
-                            match state.get(&*topic) {
-                                Some(subscribers) => {
-                                    let update_frame =
-                                        Frame(MessageType::UPDATE, topic, content, sender.clone());
-                                    for rcv in subscribers.iter() {
-                                        rcv.sender
-                                            .send(update_frame.clone())
-                                            .await
-                                            .expect("socket error");
-                                    }
-                                }
-                                None => {} // we don't care if there aren't subscribers as we don't maintain state.
-                            }
-                        }
-                        MessageType::SUB => {
-                            sender
-                                .clone()
-                                .sender
-                                .send(Frame(
-                                    MessageType::OK,
-                                    topic.clone(),
-                                    Some(format!("{:?}", msg_type)),
-                                    sender.clone(),
-                                ))
-                                .await
-                                .expect("something went sideways"); // This should never happen.
-
-                            if !state.contains_key(&*topic.clone()) {
-                                state.insert(topic.clone(), HashSet::new());
-                            }
-                            let rcvs = state.get_mut(&*topic.clone()).unwrap(); // safe unwrap!
-                            rcvs.insert(sender.clone());
-                        }
-                        MessageType::QUIT => {
-                            // Cleanup the connections on disconnect.
-                            // TODO this is O(n) where n is topics.
-                            // Can be made linear to subscribed topics by keeping a reverse lookup
-                            sender
-                                .clone()
-                                .sender
-                                .send(Frame(
-                                    MessageType::QUIT,
-                                    "".to_string(),
-                                    None,
-                                    sender.clone(),
-                                ))
-                                .await
-                                .expect("something went sideways"); // This should never happen.
-
-                            println!("DEBUG - Client disconnected. cleaning up any subscriptions to prevent leak.");
-                            for (_topic, subscribers) in state.iter_mut() {
-                                subscribers.remove(&*sender.clone());
-                            }
-                        }
-                        _ => {}
-                    }
-                } else {
-                    println!("DEBUG - [None] received by topics task");
-                }
+        loop {
+            if let Some(frame) = rx.recv().await {
+                pub_sub_topics.process_frame(frame).await;
+            } else {
+                println!("DEBUG - [None] received by topics task");
             }
-        });
-    }
+        }
+    });
 
     // Codec implementation. This could be modelled as the project grows (will make testing easier.)
     // Reads lines from the socket async into Frames which are then processed.
-    // TODO shouldn't be any leaks, but may need some validation.
+    // TODO[2022/Oct/05] shouldn't be any leaks, but may need some validation.
     loop {
         let (socket, _): (TcpStream, _) = listener.accept().await?;
         let (mut socket_read, mut socket_write): (OwnedReadHalf, OwnedWriteHalf) =
@@ -175,19 +95,11 @@ async fn main() -> crate::result::Result<()> {
             loop {
                 if let Some(frame) = reply_rx.recv().await {
                     socket_write
-                        .write_all(
-                            format!(
-                                "{:?} {} {}\n",
-                                frame.0,
-                                frame.2.unwrap_or_else(|| "".into()),
-                                frame.1
-                            )
-                            .as_ref(), // TODO refactor to implement in Display.
-                        )
+                        .write_all(&*frame.encode())
                         .await
                         .expect("failed to write frame back to socket");
 
-                    if frame.0 == QUIT {
+                    if frame.0 == MessageType::QUIT {
                         break;
                     }
                 }
@@ -214,7 +126,6 @@ async fn main() -> crate::result::Result<()> {
                     println!("disconnect received");
                     // Likely a FIN was ACK'd. On OSX, the socket advertises a single byte read (0x4).
                     tx.send(Frame {
-                        // TODO move to a method on `Frame`
                         0: MessageType::QUIT,
                         1: "".to_string(),
                         2: None,
@@ -226,9 +137,9 @@ async fn main() -> crate::result::Result<()> {
                     return;
                 }
 
-                // note: we drop the newline bytes here.
-                match Frame::new(&buf[0..message_size - 2], topic_sender.clone()) {
-                    Ok(frame) if frame.0 == QUIT => {
+                // note: we drop the newline bytes here. TODO[2022/Oct/05] move that to the codec.
+                match Frame::decode(&buf[0..message_size - 2], topic_sender.clone()) {
+                    Ok(frame) if frame.borrow().0.borrow() == &MessageType::QUIT => {
                         println!("quit");
                         tx.send(frame)
                             .await
