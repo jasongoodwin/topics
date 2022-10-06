@@ -1,16 +1,16 @@
 use std::sync::Arc;
 
-use crate::protocol::MessageType::{PUB, SUB};
+use crate::protocol::MessageType::{PUB, QUIT, SUB};
 use crate::result::{InvalidMessage, Result};
 use crate::TopicSender;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) enum MessageType {
     PUB,
     SUB,
     UPDATE,
     OK,
-    // ERROR,
+    QUIT, // ERROR,
 }
 
 impl MessageType {
@@ -42,39 +42,39 @@ impl Frame {
     pub fn new(raw_msg: &[u8], sender: Arc<TopicSender>) -> Result<Frame> {
         let msg = std::str::from_utf8(raw_msg)?; // convert msg into str without the newline.
 
-        match msg.split_once(' '){
-            Some((typ, rest))=> {
-                match MessageType::new(typ)?{
-                    PUB => {
-                        match rest.split_once(' ') {
-                            None =>
-                                InvalidMessage::new("invalid message format - needs to be in format `PUB $topic $message".to_string()),
-                            Some((topic, message)) =>
-                                Ok(Frame(
-                                    PUB,
-                                    topic.into(),
-                                    Some(message.into()),
-                                    sender
-                                )),
+        // TODO this can probably be improved: after adding "QUIT" message, you can see there may be no spaces after the command.
+        match msg.split_once(' ') {
+            Some((typ, rest)) => {
+                match MessageType::new(typ)? {
+                    PUB => match rest.split_once(' ') {
+                        None => InvalidMessage::new(
+                            "invalid message format - needs to be in format `PUB $topic $message"
+                                .to_string(),
+                        ),
+                        Some((topic, message)) => {
+                            Ok(Frame(PUB, topic.into(), Some(message.into()), sender))
                         }
-                    }
+                    },
                     SUB => {
                         // we get the topic and ignore anything after a whitespace.
                         let topic = rest.split(' ').nth(1).unwrap_or(rest);
-                        Ok(Frame(
-                            SUB,
-                            topic.into(),
-                            None,
-                            sender
-                        ))
+                        Ok(Frame(SUB, topic.into(), None, sender))
                     }
-                    _ =>
-                        InvalidMessage::new( "invalid message format - needs to be in format `PUB $topic $message".to_string()),
+                    _ => InvalidMessage::new(
+                        "invalid message format - needs to be in format `PUB $topic $message"
+                            .to_string(),
+                    ),
                 }
             }
 
-            None =>
-                InvalidMessage::new( "invalid message format - needs to be in format `PUB $topic` or `SUB $topic $optional_parameters".to_string()),
+            None => {
+                if msg.to_uppercase() == "QUIT" {
+                    Ok(Frame(QUIT, "".to_string(), None, sender))
+                } else {
+                    println!("msg: {}", msg);
+                    InvalidMessage::new( "invalid message format - needs to be in format `PUB $topic` or `SUB $topic $optional_parameters".to_string())
+                }
+            }
         }
     }
 }

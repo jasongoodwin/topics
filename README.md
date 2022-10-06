@@ -14,6 +14,8 @@ It's still a work in progress and needs some refactoring to allow testing.
 Specifically, the threads and "codec" section of the code can be factored and covered.
 Testing and a client is the next step.
 
+Some notes are included in the readme for next steps.
+
 # Usage
 The server listens on `0.0.0.0:8889` by default, or you can pass in a single argument when starting the application:
 `cargo run 127.0.0.1:7777`
@@ -70,12 +72,31 @@ The topics will asynchronously return updates on any change to the main server t
 back to any connections listening.
 Each topic is guarded by an RW lock
 
-## Outstanding Issues
+## Outstanding Issues/Optimizations
 There are a couple areas that I can see need some addressing:
 
-### Connection Leaks!
-There isn't any cleanup of the old connections. 
-This project needs to signal to the core tread when someone is done.
+### Provide ERROR back to client
+If invalid formats are provided, the server prints a message but doesn't reply to the client.
+
+### Debug logging
+It should have some debug logging to make it an easier demo project to look at and understand.
+This is a great demo project!
+
+### Modelling
+Project is still needing some designing - Codec can be modelled to make it easier to test/understand.
+
+### Spawn replies - stop awaiting/blocking.
+There is an opportunity for further improved performance by not awaiting replies sent to the socket.
+There are currently some awaits but this can be parallelized to keep the core thread free.
+
+### Connection Leaks! [FIXED] 
+Any subscriptions are cleaned up - can be made a bit more effifient but it's O(n) on number of topics to clean up.
+Drop is implemented to print to demonstrate this works as expected. 
+
+### QUIT should disconnect
+QUIT is partially implemented now.
+I think there may still an issue with the TCP connection being held open after a QUIT is received.
+The client side needs to terminate the TCP connection.
 
 # Observations and notes on Rust usage...
 As the intention for this project was to get un-rusty, I was able to capture 

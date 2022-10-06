@@ -4,6 +4,7 @@ use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
+use crate::MessageType::QUIT;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 use tokio::net::{TcpListener, TcpStream};
@@ -16,12 +17,15 @@ mod protocol;
 mod result;
 
 #[derive(Debug, Clone)]
+/// This is stored w/ the sender half of a channel to manage the connections into the server.
+/// Drop is just here for example so you can see that there aren't any leaks on disconnect.
 struct TopicSender {
     id: String,
     sender: Sender<Frame>,
 }
 
 impl Hash for TopicSender {
+    // hash is implemented to allow storing in the hashmap.
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.id.hash(state);
     }
@@ -30,6 +34,18 @@ impl Hash for TopicSender {
 impl PartialEq for TopicSender {
     fn eq(&self, other: &Self) -> bool {
         self.id == other.id
+    }
+}
+
+impl Drop for TopicSender {
+    fn drop(&mut self) {
+        println!("DEBUG - Client removed from memory! No leaks!: {}", self.id);
+        // self.sender.send(Frame{
+        //     0: MessageType::QUIT,
+        //     1: "".to_string(),
+        //     2: None,
+        //     3: Arc::new(*self)
+        // })
     }
 }
 
@@ -45,6 +61,7 @@ async fn main() -> crate::result::Result<()> {
 
     let listener = TcpListener::bind(&addr).await?;
     // FIXME - has a leak - needs to clean up disconnected clients!
+    // Can use Drop to signal to the core.
 
     let (tx, mut rx): (Sender<protocol::Frame>, Receiver<protocol::Frame>) = mpsc::channel(128);
 
@@ -106,10 +123,31 @@ async fn main() -> crate::result::Result<()> {
                             let rcvs = state.get_mut(&*topic.clone()).unwrap(); // safe unwrap!
                             rcvs.insert(sender.clone());
                         }
+                        MessageType::QUIT => {
+                            // Cleanup the connections on disconnect.
+                            // TODO this is O(n) where n is topics.
+                            // Can be made linear to subscribed topics by keeping a reverse lookup
+                            sender
+                                .clone()
+                                .sender
+                                .send(Frame(
+                                    MessageType::QUIT,
+                                    "".to_string(),
+                                    None,
+                                    sender.clone(),
+                                ))
+                                .await
+                                .expect("something went sideways"); // This should never happen.
+
+                            println!("DEBUG - Client disconnected. cleaning up any subscriptions to prevent leak.");
+                            for (_topic, subscribers) in state.iter_mut() {
+                                subscribers.remove(&*sender.clone());
+                            }
+                        }
                         _ => {}
                     }
                 } else {
-                    println!("[None] received by topics task");
+                    println!("DEBUG - [None] received by topics task");
                 }
             }
         });
@@ -117,6 +155,7 @@ async fn main() -> crate::result::Result<()> {
 
     // Codec implementation. This could be modelled as the project grows (will make testing easier.)
     // Reads lines from the socket async into Frames which are then processed.
+    // TODO shouldn't be any leaks, but may need some validation.
     loop {
         let (socket, _): (TcpStream, _) = listener.accept().await?;
         let (mut socket_read, mut socket_write): (OwnedReadHalf, OwnedWriteHalf) =
@@ -131,6 +170,7 @@ async fn main() -> crate::result::Result<()> {
         });
 
         // In one task loop, we await replies and send to the write side of the socket.
+        // Note this needs to receive a QUIT
         tokio::spawn(async move {
             loop {
                 if let Some(frame) = reply_rx.recv().await {
@@ -146,9 +186,14 @@ async fn main() -> crate::result::Result<()> {
                         )
                         .await
                         .expect("failed to write frame back to socket");
+
+                    if frame.0 == QUIT {
+                        break;
+                    }
                 }
             }
-        }); // will crash if this doesn't return ok.
+            println!("DEBUG - terminating client connection.");
+        });
 
         tokio::spawn(async move {
             // create a 1024 byte buffer and use this to receive lines.
@@ -166,12 +211,30 @@ async fn main() -> crate::result::Result<()> {
                     .expect("failed to read data from socket (disconnect)");
 
                 if message_size < 2 {
+                    println!("disconnect received");
                     // Likely a FIN was ACK'd. On OSX, the socket advertises a single byte read (0x4).
+                    tx.send(Frame {
+                        // TODO move to a method on `Frame`
+                        0: MessageType::QUIT,
+                        1: "".to_string(),
+                        2: None,
+                        3: topic_sender.clone(),
+                    })
+                    .await
+                    .expect("something went really sideways");
+
                     return;
                 }
 
                 // note: we drop the newline bytes here.
                 match Frame::new(&buf[0..message_size - 2], topic_sender.clone()) {
+                    Ok(frame) if frame.0 == QUIT => {
+                        println!("quit");
+                        tx.send(frame)
+                            .await
+                            .expect("something went really sideways");
+                        break; // terminate task.
+                    }
                     Ok(frame) => tx
                         .send(frame)
                         .await
@@ -179,6 +242,7 @@ async fn main() -> crate::result::Result<()> {
                     Err(e) => println!("error: [{:?}]", e),
                 };
             }
+            println!("DEBUG - task terminated.");
         });
     }
 }
