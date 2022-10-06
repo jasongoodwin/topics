@@ -115,7 +115,7 @@ async fn main() -> crate::result::Result<()> {
         });
     }
 
-    // Codec implementation. This could be modelled as the project grows.
+    // Codec implementation. This could be modelled as the project grows (will make testing easier.)
     // Reads lines from the socket async into Frames which are then processed.
     loop {
         let (socket, _): (TcpStream, _) = listener.accept().await?;

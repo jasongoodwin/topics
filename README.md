@@ -4,6 +4,16 @@ A redis-pub/sub-inspired Rust demo/project showing an in memory topic store that
 This project is a demonstration, not intended for production use.
 See REDIS if you need something similar as the channels and pub/sub features are well developed.
 
+## Status
+This project was built to get me back into rust as it's been a few months.
+It has some notes on rust usage hard won from a lot of days and nights building.
+I've done some cool things with rust like build a distributed backend for Indradb. 
+It has a steep initial learning curve but it's become my favorite language.
+
+It's still a work in progress and needs some refactoring to allow testing. 
+Specifically, the threads and "codec" section of the code can be factored and covered.
+Testing and a client is the next step.
+
 # Usage
 The server listens on `0.0.0.0:8889` by default, or you can pass in a single argument when starting the application:
 `cargo run 127.0.0.1:7777`
@@ -112,11 +122,14 @@ https://github.com/tokio-rs/tokio/issues/2376
 Teams will often run into this when trying to use a sync server and internally using async code.
 The servers need to use spawn_blocking for async to be utilized within the thread so consumers of sync servers will run into it a lot.
 
-# Wait, Why No Tests? What about Metrics?
-This application is such a succinct example I and is easily verified correct.
-I'll probably add some at some point :)
-It would be easy to instrument and collect metrics efficiently. 
+## Don't ignore warnings!
+Use clippy and try to get compiler and `clippy` errors/warnings down to 0.
+It's an important team heuristic to do early and often, linking this into CI if possible.
+See: https://dev.to/cloudx/rust-and-the-hidden-cargo-clippy-2a2e
 
+# Wait, Why No Tests? What about Metrics? A client?
+I was getting un-rusty so I deferred writing tests - working on it.
+Metrics here will incur some performance cost.
 Feel free to fork or provide pr.
 Rust is AWESOME.
 
@@ -124,8 +137,7 @@ Rust is AWESOME.
 Run `cargo clippy` to get some extra linting...
 
 Yes the project has pretty much 0 warnings, yet there are a small number of clippy warnings left.
-To verify, run `cargo clippy`. You'll see that there are a few warning on the ENUM capitalization which can be fixed,
-but it's kept this way just to be similar to the redis protocol for now.
+To verify, run `cargo clippy`. You'll see that there are a few warning on the enum capitalization (`PUB`, `SUB` etc) which can be fixed,
 Not really feeling opinionated right now but should fix.
 
 An important team-heuristic is to treat all warnings as errors and ensure they don't accumulate!
