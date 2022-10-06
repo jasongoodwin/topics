@@ -71,81 +71,13 @@ async fn main() -> crate::result::Result<()> {
             // This prevents any contention and will be faster than trying to manage locks.
             // Simple and to the point.
             // We can still parallelize sending of the messages tho to ensure it's extremely fast.
-            let mut state: HashMap<String, HashSet<Arc<TopicSender>>> = HashMap::default();
+
+            let mut pub_sub_topics = pub_sub_topics::PubSubTopics::new();
+            // let mut state: HashMap<String, HashSet<Arc<TopicSender>>> = HashMap::default();
 
             loop {
-                if let Some(Frame(msg_type, topic, content, sender)) = rx.recv().await {
-                    match msg_type {
-                        MessageType::PUB => {
-                            sender
-                                .clone()
-                                .sender
-                                .send(Frame(
-                                    MessageType::OK,
-                                    topic.clone(),
-                                    Some(format!("{:?}", msg_type)),
-                                    sender.clone(),
-                                ))
-                                .await
-                                .expect("something went sideways..."); // should never happen
-
-                            match state.get(&*topic) {
-                                Some(subscribers) => {
-                                    let update_frame =
-                                        Frame(MessageType::UPDATE, topic, content, sender.clone());
-                                    for rcv in subscribers.iter() {
-                                        rcv.sender
-                                            .send(update_frame.clone())
-                                            .await
-                                            .expect("socket error");
-                                    }
-                                }
-                                None => {} // we don't care if there aren't subscribers as we don't maintain state.
-                            }
-                        }
-                        MessageType::SUB => {
-                            sender
-                                .clone()
-                                .sender
-                                .send(Frame(
-                                    MessageType::OK,
-                                    topic.clone(),
-                                    Some(format!("{:?}", msg_type)),
-                                    sender.clone(),
-                                ))
-                                .await
-                                .expect("something went sideways"); // This should never happen.
-
-                            if !state.contains_key(&*topic.clone()) {
-                                state.insert(topic.clone(), HashSet::new());
-                            }
-                            let rcvs = state.get_mut(&*topic.clone()).unwrap(); // safe unwrap!
-                            rcvs.insert(sender.clone());
-                        }
-                        MessageType::QUIT => {
-                            // Cleanup the connections on disconnect.
-                            // TODO this is O(n) where n is topics.
-                            // Can be made linear to subscribed topics by keeping a reverse lookup
-                            // TODO leak - drop empty topics!
-                            sender
-                                .clone()
-                                .sender
-                                .send(Frame(
-                                    MessageType::QUIT,
-                                    "".to_string(),
-                                    None,
-                                    sender.clone(),
-                                ))
-                                .await
-                                .expect("something went sideways"); // This should never happen.
-
-                            println!("DEBUG - Client disconnected. cleaning up any subscriptions to prevent leak.");
-                            for (_topic, subscribers) in state.iter_mut() {
-                                subscribers.remove(&*sender.clone());
-                            }
-                        }
-                        _ => {}
-                    }
+                if let Some(frame) = rx.recv().await {
+                    pub_sub_topics.process_frame(frame).await;
                 } else {
                     println!("DEBUG - [None] received by topics task");
                 }
