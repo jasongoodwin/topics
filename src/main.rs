@@ -60,20 +60,18 @@ async fn main() -> crate::result::Result<()> {
 
     let (tx, mut rx): (Sender<protocol::Frame>, Receiver<protocol::Frame>) = mpsc::channel(128);
 
-    {
-        // spawn a task to receive messages for the pub/sub engine.
-        tokio::spawn(async move {
-            let mut pub_sub_topics = pub_sub_topics::PubSubTopics::new();
+    // spawn a task to receive messages for the pub/sub engine.
+    tokio::spawn(async move {
+        let mut pub_sub_topics = pub_sub_topics::PubSubTopics::new();
 
-            loop {
-                if let Some(frame) = rx.recv().await {
-                    pub_sub_topics.process_frame(frame).await;
-                } else {
-                    println!("DEBUG - [None] received by topics task");
-                }
+        loop {
+            if let Some(frame) = rx.recv().await {
+                pub_sub_topics.process_frame(frame).await;
+            } else {
+                println!("DEBUG - [None] received by topics task");
             }
-        });
-    }
+        }
+    });
 
     // Codec implementation. This could be modelled as the project grows (will make testing easier.)
     // Reads lines from the socket async into Frames which are then processed.
