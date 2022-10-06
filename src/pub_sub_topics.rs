@@ -3,6 +3,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 /// Manages the topics and subscribers.
+/// This struct will hold the pub/sub TopicSender which contains a channel.
 pub(crate) struct PubSubTopics {
     topics_state: HashMap<String, HashSet<Arc<TopicSender>>>,
 }
@@ -14,7 +15,13 @@ impl PubSubTopics {
         }
     }
 
+    /// process_frame will handle a decoded message and reply on the appropriate channel.
     pub(crate) async fn process_frame(&mut self, frame: Frame) -> () {
+        // no locking abstractions are needed as there is a single thread for the core engine.
+        // This prevents any contention and will be faster than trying to manage locks.
+        // Simple and to the point.
+        // We can still parallelize sending of the messages tho to ensure it's extremely fast.
+
         let Frame(msg_type, topic, content, sender) = frame;
         match msg_type {
             MessageType::PUB => {
@@ -65,9 +72,8 @@ impl PubSubTopics {
             }
             MessageType::QUIT => {
                 // Cleanup the connections on disconnect.
-                // TODO this is O(n) where n is topics.
-                // Can be made linear to subscribed topics by keeping a reverse lookup
-                // TODO leak - drop empty topics!
+                // TODO[2022/Oct/05] - perf - Can be made linear to subscribed topics by keeping a reverse lookup
+                // TODO[2022/Oct/05] leak - drop empty topics!
                 sender
                     .clone()
                     .sender

@@ -48,7 +48,7 @@ impl Frame {
         // add the message_type
         let mut message: String = format!("{:?}", self.0);
         // add the topic
-        if !self.2.is_some() {
+        if self.2.is_some() {
             message = message + &*format!(" {}", self.2.as_ref().unwrap())
         }
         // add the content
@@ -61,11 +61,12 @@ impl Frame {
 
     /// decodes bytes into a Result<Frame>
     /// Errors are generally of type InvalidMessage
-    /// TODO First iteration is getting outgrown - Would be a lot cleaner to stream through the bytes instead of splitting.
+    /// TODO[2022/Oct/05] First iteration is getting outgrown - Would be a lot cleaner to stream through the bytes instead of splitting.
     pub fn decode(raw_msg: &[u8], sender: Arc<TopicSender>) -> Result<Frame> {
         let msg = std::str::from_utf8(raw_msg)?; // convert msg into str without the newline.
 
         match msg.split_once(' ') {
+            _ if msg.to_uppercase() == "QUIT" => Ok(Frame(QUIT, "".to_string(), None, sender)),
             Some((typ, rest)) => {
                 match MessageType::new(typ)? {
                     PUB => match rest.split_once(' ') {
@@ -90,12 +91,8 @@ impl Frame {
             }
 
             None => {
-                if msg.to_uppercase() == "QUIT" {
-                    Ok(Frame(QUIT, "".to_string(), None, sender))
-                } else {
-                    println!("msg: {}", msg);
-                    InvalidMessage::new( "invalid message format - needs to be in format `PUB $topic` or `SUB $topic $optional_parameters".to_string())
-                }
+                println!("msg: {}", msg);
+                InvalidMessage::new( "invalid message format - needs to be in format `PUB $topic` or `SUB $topic $optional_parameters".to_string())
             }
         }
     }

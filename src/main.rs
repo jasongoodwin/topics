@@ -1,11 +1,9 @@
 use std::borrow::Borrow;
-use std::collections::{HashMap, HashSet};
 use std::env;
 use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
-use crate::MessageType::QUIT;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 use tokio::net::{TcpListener, TcpStream};
@@ -67,13 +65,7 @@ async fn main() -> crate::result::Result<()> {
     {
         // spawn a task to receive messages for the pub/sub engine.
         tokio::spawn(async move {
-            // no locking abstractions are needed as there is a single thread for the core engine.
-            // This prevents any contention and will be faster than trying to manage locks.
-            // Simple and to the point.
-            // We can still parallelize sending of the messages tho to ensure it's extremely fast.
-
             let mut pub_sub_topics = pub_sub_topics::PubSubTopics::new();
-            // let mut state: HashMap<String, HashSet<Arc<TopicSender>>> = HashMap::default();
 
             loop {
                 if let Some(frame) = rx.recv().await {
@@ -87,7 +79,7 @@ async fn main() -> crate::result::Result<()> {
 
     // Codec implementation. This could be modelled as the project grows (will make testing easier.)
     // Reads lines from the socket async into Frames which are then processed.
-    // TODO shouldn't be any leaks, but may need some validation.
+    // TODO[2022/Oct/05] shouldn't be any leaks, but may need some validation.
     loop {
         let (socket, _): (TcpStream, _) = listener.accept().await?;
         let (mut socket_read, mut socket_write): (OwnedReadHalf, OwnedWriteHalf) =
@@ -111,7 +103,7 @@ async fn main() -> crate::result::Result<()> {
                         .await
                         .expect("failed to write frame back to socket");
 
-                    if frame.0 == QUIT {
+                    if frame.0 == MessageType::QUIT {
                         break;
                     }
                 }
@@ -137,7 +129,6 @@ async fn main() -> crate::result::Result<()> {
                 if message_size < 2 {
                     println!("disconnect received");
                     // Likely a FIN was ACK'd. On OSX, the socket advertises a single byte read (0x4).
-                    // TODO move to the codec.
                     tx.send(Frame {
                         0: MessageType::QUIT,
                         1: "".to_string(),
@@ -150,9 +141,9 @@ async fn main() -> crate::result::Result<()> {
                     return;
                 }
 
-                // note: we drop the newline bytes here. TODO move that to the codec.
+                // note: we drop the newline bytes here. TODO[2022/Oct/05] move that to the codec.
                 match Frame::decode(&buf[0..message_size - 2], topic_sender.clone()) {
-                    Ok(frame) if frame.borrow().0.borrow() == &QUIT => {
+                    Ok(frame) if frame.borrow().0.borrow() == &MessageType::QUIT => {
                         println!("quit");
                         tx.send(frame)
                             .await
