@@ -57,8 +57,6 @@ async fn main() -> crate::result::Result<()> {
         .unwrap_or_else(|| "0.0.0.0:8889".to_string());
 
     let listener = TcpListener::bind(&addr).await?;
-    // FIXME - has a leak - needs to clean up disconnected clients!
-    // Can use Drop to signal to the core.
 
     let (tx, mut rx): (Sender<protocol::Frame>, Receiver<protocol::Frame>) = mpsc::channel(128);
 
