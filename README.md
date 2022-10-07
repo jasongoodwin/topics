@@ -215,6 +215,37 @@ Feel free to peruse the history to see the design progressing. I didn't even hav
 Everything is a work in progress. Socialize these ideas, and make everyone feel comfortable and confident that "we'll get there!"
 It's easy to get paralyzed looking for perfection.
 
+## Standardizing a Makefile
+Make is a c build tool but hold your judgement and hear me out:
+
+We often work with a variety of technology in our teams and flipping between technologies has some cognitive load.
+One of the ways I've found to sort of "standardize" the interaction with projects is to insert a Makefile in every project.
+
+Rather than always needing to think about what `go` or `rust` or `python` or `elixir` or `javascript/html/css` targets are needed to test and build,
+you can use a set of standard Makefile targets:
+
+`make build`
+`make test`
+`make lint`
+`make benchmark`
+`make whatever!`
+
+To do this, you just put a Makefile into the project root and call the appropriate tools and targets.
+For example, instead of running `cargo fmt`, `cargo test` and `cargo build` you can call:
+
+`make fmt` `make test` and `make build`
+
+And do the same thing in each project.
+
+Then every project your team uses, regardless of the technology, you can call the exact same targets.
+It just standardizes the way you work with all of your technology so you don't have to go remember what build tools are used.
+There are some beneficial side effects too. If a project lacks linting, testing, or benches, it'll be obvious.
+It lets teams essentially standardize the workflow and reviewers have a net to catch more.
+Make a document that says "here is how to review code: `make lint`, `make test`, `make bench` and also read/understand it!"
+
+It almost seems silly simple but trust me - it's a powerful heuristic.
+You can see the Makefile added to this project as an example, and just copy it into your other projects.
+Doesn't matter what tech, you should always have at least some linting and formatting targets, even js/html/css.
 
 # Wait, Why No Tests? What about Metrics? A client?
 I was getting un-rusty so I deferred writing tests - working on it.

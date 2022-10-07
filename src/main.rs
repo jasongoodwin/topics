@@ -12,7 +12,6 @@ use tokio::sync::mpsc::{channel, Receiver, Sender};
 
 use crate::protocol::{Frame, MessageType};
 
-mod codec;
 mod protocol;
 mod pub_sub_topics;
 mod result;
@@ -23,6 +22,15 @@ mod result;
 struct TopicSender {
     id: String,
     sender: Sender<Frame>,
+}
+
+impl TopicSender {
+    pub(crate) fn new(sender: Sender<Frame>) -> Arc<TopicSender> {
+        Arc::new(TopicSender {
+            id: uuid::Uuid::new_v4().to_string(),
+            sender,
+        })
+    }
 }
 
 impl Hash for TopicSender {
@@ -84,10 +92,7 @@ async fn main() -> crate::result::Result<()> {
 
         let (reply_tx, mut reply_rx): (Sender<Frame>, Receiver<Frame>) = channel(128);
 
-        let topic_sender = Arc::new(TopicSender {
-            id: uuid::Uuid::new_v4().to_string(),
-            sender: reply_tx,
-        });
+        let topic_sender = TopicSender::new(reply_tx);
 
         // In one task loop, we await replies and send to the write side of the socket.
         // Note this needs to receive a QUIT
@@ -123,7 +128,7 @@ async fn main() -> crate::result::Result<()> {
                     .expect("failed to read data from socket (disconnect)");
 
                 if message_size < 2 {
-                    println!("disconnect received");
+                    println!("DEBUG - disconnect received");
                     // Likely a FIN was ACK'd. On OSX, the socket advertises a single byte read (0x4).
                     tx.send(Frame {
                         0: MessageType::QUIT,
@@ -140,7 +145,7 @@ async fn main() -> crate::result::Result<()> {
                 // note: we drop the newline bytes here. TODO[2022/Oct/05] move that to the codec.
                 match Frame::decode(&buf[0..message_size - 2], topic_sender.clone()) {
                     Ok(frame) if frame.borrow().0.borrow() == &MessageType::QUIT => {
-                        println!("quit");
+                        println!("DEBUG - quit");
                         tx.send(frame)
                             .await
                             .expect("something went really sideways");
@@ -150,7 +155,7 @@ async fn main() -> crate::result::Result<()> {
                         .send(frame)
                         .await
                         .expect("something went really sideways"),
-                    Err(e) => println!("error: [{:?}]", e),
+                    Err(e) => println!("DEBUG - error: [{:?}]", e),
                 };
             }
             println!("DEBUG - task terminated.");
