@@ -141,4 +141,34 @@ mod tests {
         assert_eq!(topic, "");
         assert_eq!(content, None);
     }
+
+    #[test]
+    fn frame_should_encode_quit() {
+        let (tx, mut rx): (Sender<Frame>, Receiver<Frame>) = mpsc::channel(128);
+        let topic_sender = TopicSender::new(tx);
+
+        let frame = Frame {
+            0: MessageType::QUIT,
+            1: "".to_string(),
+            2: None,
+            3: topic_sender,
+        };
+
+        assert_eq!(frame.encode(), "QUIT\n".as_bytes().to_owned())
+    }
+
+    #[test]
+    fn frame_should_encode_update() {
+        let (tx, mut rx): (Sender<Frame>, Receiver<Frame>) = mpsc::channel(128);
+        let topic_sender = TopicSender::new(tx);
+
+        let frame = Frame {
+            0: MessageType::QUIT,
+            1: "".to_string(),
+            2: None,
+            3: topic_sender,
+        };
+
+        assert_eq!(frame.encode(), "QUIT\n".as_bytes().to_owned())
+    }
 }
