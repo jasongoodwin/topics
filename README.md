@@ -39,7 +39,7 @@ Then you can issue space delimited commands:
 You should see the responses.
 
 Kick up a couple consoles and test this!
-Benchmarks pending still but this project will absolutely shine against competitors, even given its youth.
+Benchmarks pending still but this project should be able to handle a lot of load.
 
 ## Protocol
 This uses tokio's reactor for async.
@@ -58,8 +58,10 @@ Replies are provided to the socket - because the server has some asynchrony, it 
 `OK SUB top1`
 
 # Design
-The tokio codec/Encoder/Decoder are not used at the moment - this uses mostly bare rust.
-An alternative design would use streams w/ the Tokio codec. 
+Note:
+I learned about the tokio codec abstractions recently: 
+the tokio codec/Encoder/Decoder are not used at the moment.
+An alternative design would use streams w/ the Tokio codec which I think is a good idea now.
 See: https://docs.rs/tokio/0.1.22/tokio/codec/index.html
 
 Each connection feeds messages to a single thread to maintain ordering.
@@ -83,13 +85,13 @@ There are a couple areas that I can see need some addressing:
 
 ### TEST
 Tests are being added but still a bit anemic.
-Good example project, but it needs factoring and tests at this point.
+Good example project, but it needs some factoring and more tests still.
 
 ### Provide ERROR back to client
 If invalid formats are provided, the server prints a message but doesn't reply to the client.
 
 ### Debug logging
-It should have some debug logging to make it an easier demo project to look at and understand.
+It should have async and configurable debug logging to make it an easier demo project to look at and understand.
 This is a great demo project!
 
 ### Improved Model
@@ -98,7 +100,7 @@ The tokio `codec` provides a stream and this project would be a nice target to u
 
 ### Spawn replies - stop awaiting/blocking.
 There is an opportunity for further improved performance by not awaiting replies sent to the socket.
-There are currently some serial awaits but we can join those futures.
+There are currently some serial awaits, but we can `join` those futures or `spawn` the work.
 
 ### Connection Leaks! [FIXED] 
 Any subscriptions are cleaned up - can be made a bit more efficient - it's O(n) on number of topics to clean up.
@@ -107,10 +109,8 @@ Drop is implemented to print to demonstrate this works as expected.
 ### Empty topic leak
 When cleaning up subscriptions, topics should be emptied.
 
-### QUIT should disconnect
-QUIT is partially implemented now.
-I think there may still an issue with the TCP connection being held open after a QUIT is received.
-The client side needs to terminate the TCP connection.
+### Error replies
+Currently, no error replies are sent to bad messages from clients.
 
 # Observations and notes on Rust usage...
 As the intention for this project was to get un-rusty, I was able to capture 
@@ -258,12 +258,12 @@ This can cause poor CPU utilization - web applications are almost all async now 
 Because rust doesn't have any runtime in the core library, the ecosystem has been at work to build reactor-based runtimes.
 Tokio is an example of a runtime and collection of tools that are well-developed and easy to implement.
 The cost is the size of the dependencies and this is why there isn't anything in rust itself to address this problem.
-Utilizing a runtime for task execution that's reactor-based will produce a small number of threads and use a scheduler to do the work.
-The caveat is that you need to be careful about blocking in a scheduler. 
-
-See tokio's: `spawn_blocking` which will execute tasks that have blocking operations in a secondary dedicated threadpool.
+Utilizing a runtime for task execution that's reactor-based will produce a small number of threads and use a scheduler to do the work in an efficient manner.
+The caveat is that you need to be careful about blocking in an async scheduler as there are not many threads!
+*THIS IS VERY IMPORTANT!*
+See tokio's: `spawn_blocking` which will execute tasks that have blocking operations in a secondary dedicated threadpool and add threads as necessary.
 https://teaclave.apache.org/api-docs/crates-app/tokio/task/fn.spawn_blocking.html#:~:text=Tokio%20will%20spawn%20more%20blocking,that%20cannot%20be%20performed%20asynchronously.
-THIS IS VERY IMPORTANT!
+
 
 # Linting?
 Run `cargo clippy` to get some extra linting...
