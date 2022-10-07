@@ -11,15 +11,16 @@ It has some notes on rust usage hard won from a lot of days and nights building.
 I've done some cool things with rust like build a distributed backend for Indradb. 
 It has a steep initial learning curve but it's become my favorite language.
 
-It's still a work in progress and needs some refactoring to allow testing. 
-Specifically, the threads and "codec" section of the code can be factored and covered.
-Testing and a client is the next step.
+I'm still iterating on this and covering it with more testing but it's coming along.
 
 Some notes are included in the readme for next steps.
 
 # Usage
 The server listens on `0.0.0.0:8889` by default, or you can pass in a single argument when starting the application:
 `cargo run 127.0.0.1:7777`
+
+# Testing
+`cargo test` or `make test`
 
 ## How To Follow Along
 You can test the server by using `telnet`.
@@ -81,7 +82,7 @@ Each topic is guarded by an RW lock
 There are a couple areas that I can see need some addressing:
 
 ### TEST
-The project is a bit hacked together still - it needs to be covered.
+Tests are being added but still a bit anemic.
 Good example project, but it needs factoring and tests at this point.
 
 ### Provide ERROR back to client
@@ -91,12 +92,13 @@ If invalid formats are provided, the server prints a message but doesn't reply t
 It should have some debug logging to make it an easier demo project to look at and understand.
 This is a great demo project!
 
-### Modelling
-Project is still needing some designing - Codec can be modelled to make it easier to test/understand.
+### Improved Model
+First pass, the project is nice and simple, but I learned that tokio provides stream abstractions.
+The tokio `codec` provides a stream and this project would be a nice target to use those abstractions. 
 
 ### Spawn replies - stop awaiting/blocking.
 There is an opportunity for further improved performance by not awaiting replies sent to the socket.
-There are currently some awaits but this can be parallelized to keep the core thread free.
+There are currently some serial awaits but we can join those futures.
 
 ### Connection Leaks! [FIXED] 
 Any subscriptions are cleaned up - can be made a bit more efficient - it's O(n) on number of topics to clean up.
@@ -189,7 +191,7 @@ use my_real_repo::MyRealRepo;
 Because they'll both have the same name, when the code is compiled in test, it'll just point to the other implementation.
 No traits needed. No boxing. No dynamic dispatch.  
 
-If you want mocks, there are a couple crates - namely mockall and mockall-doubles but they can be tricky to use 
+If you want mocks, there are a couple crates - namely `mockall` and `mockall-doubles` but they can be tricky to use 
 in certain situations - notably mocking external dependencies can be hard and often overcome with design. 
 Eg using a repository instead of directly access a database. This design approach is more "Domain Model" and less "Transaction Script."
 
@@ -247,11 +249,21 @@ It almost seems silly simple but trust me - it's a powerful heuristic.
 You can see the Makefile added to this project as an example, and just copy it into your other projects.
 Doesn't matter what tech, you should always have at least some linting and formatting targets, even js/html/css.
 
-# Wait, Why No Tests? What about Metrics? A client?
-I was getting un-rusty so I deferred writing tests - working on it.
-Metrics here will incur some performance cost. Logging should be removed and/or async.
-Feel free to fork or provide pr.
-Rust is AWESOME.
+## Some Notes on Runtimes (eg tokio), Async, and Blocking IO
+Rust has some nice async abstractions with async/await, but core rust intentionally excludes any executor.
+Threads are fine for some scenarios, but they have a fairly large overhead and can cause performance issues.
+If there are many threads waiting for blocking IO (eg a database read,) then the CPU has to context swap all of the threads to find work.
+This can cause poor CPU utilization - web applications are almost all async now and can perform orders of magnitude more work.
+
+Because rust doesn't have any runtime in the core library, the ecosystem has been at work to build reactor-based runtimes.
+Tokio is an example of a runtime and collection of tools that are well-developed and easy to implement.
+The cost is the size of the dependencies and this is why there isn't anything in rust itself to address this problem.
+Utilizing a runtime for task execution that's reactor-based will produce a small number of threads and use a scheduler to do the work.
+The caveat is that you need to be careful about blocking in a scheduler. 
+
+See tokio's: `spawn_blocking` which will execute tasks that have blocking operations in a secondary dedicated threadpool.
+https://teaclave.apache.org/api-docs/crates-app/tokio/task/fn.spawn_blocking.html#:~:text=Tokio%20will%20spawn%20more%20blocking,that%20cannot%20be%20performed%20asynchronously.
+THIS IS VERY IMPORTANT!
 
 # Linting?
 Run `cargo clippy` to get some extra linting...
