@@ -33,7 +33,11 @@ mod tests {
     // demonstrates we can capture the InvalidResult as an std::Result and print.
     // the abstraction just simplifies the types in code to make it more readable.
     fn invalid_message_should_print_debug_msg() {
-        let msg: crate::result::Result<_> = InvalidMessage::new::<String>("these are the details".into());
-        assert_eq!(format!("{:?}", msg), "Err(InvalidMessage { details: \"these are the details\" })");
+        let msg: crate::result::Result<_> =
+            InvalidMessage::new::<String>("these are the details".into());
+        assert_eq!(
+            format!("{:?}", msg),
+            "Err(InvalidMessage { details: \"these are the details\" })"
+        );
     }
 }

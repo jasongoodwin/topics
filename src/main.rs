@@ -162,3 +162,7 @@ async fn main() -> crate::result::Result<()> {
         });
     }
 }
+
+#[cfg(test)]
+// Todo[2022/oct/05] make a client and test
+mod tests {}
