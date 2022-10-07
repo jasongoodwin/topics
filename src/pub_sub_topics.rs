@@ -98,3 +98,7 @@ impl PubSubTopics {
         }
     }
 }
+
+#[cfg(test)]
+// Todo[2022/oct/05] test!
+mod tests {}
