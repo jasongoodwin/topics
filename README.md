@@ -123,9 +123,24 @@ through a lot of really intense days and night. I have proficiency with many lan
 and I believe very strongly that rust is probably the most powerful language.
 It has a steep initial learning-curve but it rewards teams with excellent safety.
 
-## Memory usage and cloning
+## Memory usage and over-cloning
 Through my learning, I've observed that people tend to not understand borrow vs ownership well and tend to over-clone.
-You'll see careful handling of memory throughout the application.
+I'll try to demonstrate this - use Rc and Arc and stop cloning everything!
+I've seen advanced users of high calibre even not quite get this right.
+
+Consider every call to `clone` - you can borrow and mutate and do all the things without making 1000 clones.
+Primitives implement copy - they'll be replicated into function calls where they would be owned.
+Utilizing Rc/Arc will allow cloning without a full memory copy.
+You'll see channel halves cloned in this project - if you understand the implementations, then you'll understand that this is cheap!
+https://docs.rs/tokio/latest/tokio/sync/mpsc/struct.Sender.html
+
+You just need a little insight into the borrow/copy semantics, slices, primitives, and how the compiler works.
+And be patient - it's really hard to learn these fine details. But just don't give up, backtrack on your learning, and do it as a team!
+Hold sessions to gather and share insight and learning. It can be hard to balance progress and learning. 
+Think: "As a team, let's do it together."
+
+It's okay to over-use cloning if you're learning, and I promise you will.
+But share, review, socialize. These are areas to progress on, not be perfect day 1.
 
 ## Cargo.lock
 Cargo.lock is included in the project, but this should be removed.
