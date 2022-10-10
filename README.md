@@ -9,7 +9,7 @@ See REDIS if you need something similar as the channels and pub/sub features are
 This project was built to get me back into rust as it's been a few months.
 It has some notes on rust usage hard won from a lot of days and nights building.
 I've done some cool things with rust like build a distributed backend for Indradb. 
-It has a steep initial learning curve but it's become my favorite language.
+Rust has a steep initial learning curve but it's become my favorite language.
 
 I'm still iterating on this and covering it with more testing but it's coming along.
 
@@ -57,6 +57,9 @@ Connections are made and can subscribe to any topic by sending a message:
 Replies are provided to the socket - because the server has some asynchrony, it sends some information about the reply.
 `OK SUB top1`
 
+If you're subscribed you'll receive an `UPDATE` message if anyone updates a topic with a message.
+`UPDATE topic I'm a message`
+
 # Design
 Note:
 I learned about the tokio codec abstractions recently: 
@@ -64,21 +67,20 @@ the tokio codec/Encoder/Decoder are not used at the moment.
 An alternative design would use streams w/ the Tokio codec which I think is a good idea now.
 See: https://docs.rs/tokio/0.1.22/tokio/codec/index.html
 
-Each connection feeds messages to a single thread to maintain ordering.
-There is a lock-free core task loop that will read requests and reply with updates to listener tasks.
+Each connection feeds messages to a single thread to ensure correct ordering.
+There is a lock-free core task loop that will read requests and reply with updates to listeners.
 This is done in a non-blocking fashion to require a small resource footprint while maintaining some asynchrony at the expense of needing the Tokio runtime in the project.
 These trade-offs are well considered and I feel this is a good seed project for most any related use case.
 It could be sharded and scaled to improve resource utilization depending on the use cases. It'll be very, very fast tho so only extreme applications would need to. 
 consider moving in that direction.
 
-At the core, there are three areas of interest:
+At the core, there are some areas of interest:
 - At the core, a single thread will process all activity to channels.
-- The receiver loop will receive a connection and use mpsc for asynchronous communication
+- The receiver loop will receive a connection and use mpsc for asynchronous communication.
 
 The thread will send requests over mpsc to topics where messages can be serially processed by each topic.
 The topics will asynchronously return updates on any change to the main server thread, where the messages are dispatched async
 back to any connections listening.
-Each topic is guarded by an RW lock
 
 ## Outstanding Issues/Optimizations
 There are a couple areas that I can see need some addressing:
@@ -97,6 +99,7 @@ This is a great demo project!
 ### Improved Model
 First pass, the project is nice and simple, but I learned that tokio provides stream abstractions.
 The tokio `codec` provides a stream and this project would be a nice target to use those abstractions. 
+The model is progressing and getting covered but I see some cool potential design targets.
 
 ### Spawn replies - stop awaiting/blocking.
 There is an opportunity for further improved performance by not awaiting replies sent to the socket.
