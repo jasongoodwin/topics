@@ -3,7 +3,7 @@ A redis-pub/sub-inspired Rust demo/project showing an in memory topic store that
 
 This project is a demonstration and for us to learn together!
 It's not intended for production use currently, although would be a good seed project.
-See REDIS if you need something similar as the channels and pub/sub features are well developed.
+See REDIS if you need something similar as the streams and pub/sub features are well developed.
 
 ## Status
 This project was built to get me back into rust as it's been a few months.
