@@ -146,10 +146,7 @@ It's okay to over-use cloning if you're learning, and I promise you will.
 But share, review, socialize. These are areas to progress on, not be perfect day 1.
 
 ## Cargo.lock
-Cargo.lock is included in the project, but this should be removed.
-Cargo.lock is best included with libraries and excluded in applications like this.
-For simplicity, it's included but if this was a real stand-alone project intended for use,
-this should be removed.
+Cargo.lock is included in the project as it's the end of the dependency chain (eg a binary).
 
 ## Unwraps and Thread Panics
 It's easy to unsafely `unwrap` and this is one of the areas that young teams will make mistakes.
