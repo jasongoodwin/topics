@@ -43,24 +43,30 @@ impl PubSubTopics {
 
                 match self.topics_state.get(topic) {
                     Some(subscribers) => {
+                        // Create the frame. There are in arcs so we can clone them.
                         let update_frame = Arc::new(Frame(
                             MessageType::UPDATE,
                             topic.clone(),
                             content.clone(),
                             sender.clone(),
                         ));
+
+                        // Create a vector of futures for sequencing.
+                        // Mpsc ensures ordering, but the tokio reactor sees each task as unique.
+                        // In order to ensure the main thread completes all tasks related to a publish to a topic
+                        // we need to sequence and await the futures before continuing, otherwise ordering is non-deterministic.
                         let mut fs = Vec::new();
 
                         for rcv in subscribers.iter() {
-                            let sender = rcv.sender.clone();
-                            let frame = update_frame.clone();
-                            let f = tokio::spawn(async move {
-                                sender.send(frame).await.expect("socket error");
-                            });
-
+                            // The future is placed in the vector
+                            let f = rcv.sender.send(update_frame.clone());
                             fs.push(f);
                         }
-                        join_all(fs).await;
+                        // and then is sequenced before awaiting the thread.
+                        for res in join_all(fs).await {
+                            // TODO need to check how this behaves if the network drops.
+                            res.expect("socket error");
+                        }
                     }
                     None => {} // we don't care if there aren't subscribers as we don't maintain state.
                 }
