@@ -46,18 +46,23 @@ impl Frame {
         // Just builds a String 'TYPE TOPIC CONTENT' and returns the referenced byte array.
         // bit more complex than needed to ensure no insignificant whitespace. Can rewrite this.
 
-        // add the message_type
-        let mut message: String = format!("{:?}", self.0);
-        // add the topic
-        if self.2.is_some() {
-            message = message + &*format!(" {}", self.2.as_ref().unwrap())
+        match self {
+            Frame(msg_type, topic, content, _sender) => {
+                // add the message_type
+                let mut message: String = format!("{:?}", msg_type);
+                // add the topic
+                if content.is_some() {
+                    message = message + &*format!(" {}", content.as_ref().unwrap())
+                }
+                // add the content
+                if !topic.is_empty() {
+                    message = message + &*format!(" {}", topic)
+                }
+                message = message + "\n";
+                message.as_bytes().to_owned()
+            }
         }
-        // add the content
-        if !self.1.is_empty() {
-            message = message + &*format!(" {}", self.1)
-        }
-        message = message + "\n";
-        message.as_bytes().to_owned()
+
     }
 
     /// decodes bytes into a Result<Frame>
