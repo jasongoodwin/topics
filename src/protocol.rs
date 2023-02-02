@@ -102,16 +102,15 @@ impl Frame {
 #[cfg(test)]
 mod tests {
     use crate::{Frame, MessageType, TopicSender};
-    use std::sync::Arc;
     use tokio::sync::mpsc;
     use tokio::sync::mpsc::{Receiver, Sender};
 
     #[test]
     fn frame_should_decode_pub() {
-        let (tx, mut rx): (Sender<Frame>, Receiver<Frame>) = mpsc::channel(128);
+        let (tx, _rx): (Sender<Frame>, Receiver<Frame>) = mpsc::channel(128);
         let topic_sender = TopicSender::new(tx);
 
-        let Frame(message_type, topic, content, sender) =
+        let Frame(message_type, topic, content, _sender) =
             Frame::decode("PUB topic message".as_ref(), topic_sender).unwrap();
         assert_eq!(message_type, MessageType::PUB);
         assert_eq!(topic, "topic");
@@ -120,10 +119,10 @@ mod tests {
 
     #[test]
     fn frame_should_decode_sub() {
-        let (tx, mut rx): (Sender<Frame>, Receiver<Frame>) = mpsc::channel(128);
+        let (tx, _rx): (Sender<Frame>, Receiver<Frame>) = mpsc::channel(128);
         let topic_sender = TopicSender::new(tx);
 
-        let Frame(message_type, topic, content, sender) =
+        let Frame(message_type, topic, content, _sender) =
             Frame::decode("SUB topic".as_ref(), topic_sender).unwrap();
         assert_eq!(message_type, MessageType::SUB);
         assert_eq!(topic, "topic");
@@ -132,10 +131,10 @@ mod tests {
 
     #[test]
     fn frame_should_decode_quit() {
-        let (tx, mut rx): (Sender<Frame>, Receiver<Frame>) = mpsc::channel(128);
+        let (tx, _rx): (Sender<Frame>, Receiver<Frame>) = mpsc::channel(128);
         let topic_sender = TopicSender::new(tx);
 
-        let Frame(message_type, topic, content, sender) =
+        let Frame(message_type, topic, content, _sender) =
             Frame::decode("QUIT".as_ref(), topic_sender).unwrap();
         assert_eq!(message_type, MessageType::QUIT);
         assert_eq!(topic, "");
@@ -144,7 +143,7 @@ mod tests {
 
     #[test]
     fn frame_should_encode_quit() {
-        let (tx, mut rx): (Sender<Frame>, Receiver<Frame>) = mpsc::channel(128);
+        let (tx, _rx): (Sender<Frame>, Receiver<Frame>) = mpsc::channel(128);
         let topic_sender = TopicSender::new(tx);
 
         let frame = Frame {
@@ -159,7 +158,7 @@ mod tests {
 
     #[test]
     fn frame_should_encode_update() {
-        let (tx, mut rx): (Sender<Frame>, Receiver<Frame>) = mpsc::channel(128);
+        let (tx, _rx): (Sender<Frame>, Receiver<Frame>) = mpsc::channel(128);
         let topic_sender = TopicSender::new(tx);
 
         let frame = Frame {
