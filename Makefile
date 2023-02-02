@@ -8,4 +8,4 @@ lint:
 	cargo clippy
 
 build:
-	cargo build
+	cargo build --release
