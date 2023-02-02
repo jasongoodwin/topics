@@ -68,11 +68,13 @@ impl Frame {
     /// decodes bytes into a Result<Frame>
     /// Errors are generally of type InvalidMessage
     /// TODO[2022/Oct/05] First iteration is getting outgrown - Would be a lot cleaner to stream through the bytes instead of splitting.
-    pub fn decode(raw_msg: &[u8], sender: Arc<TopicSender>) -> Result<Frame> {
+    pub fn decode(raw_msg: &[u8], sender: Arc<TopicSender>) -> Result<Arc<Frame>> {
         let msg = std::str::from_utf8(raw_msg)?; // convert msg into str without the newline.
 
         match msg.split_once(' ') {
-            _ if msg.to_uppercase() == "QUIT" => Ok(Frame(QUIT, "".to_string(), None, sender)),
+            _ if msg.to_uppercase() == "QUIT" => {
+                Ok(Arc::new(Frame(QUIT, "".to_string(), None, sender)))
+            }
             Some((typ, rest)) => {
                 match MessageType::new(typ)? {
                     PUB => match rest.split_once(' ') {
@@ -80,14 +82,17 @@ impl Frame {
                             "invalid message format - needs to be in format `PUB $topic $message"
                                 .to_string(),
                         ),
-                        Some((topic, message)) => {
-                            Ok(Frame(PUB, topic.into(), Some(message.into()), sender))
-                        }
+                        Some((topic, message)) => Ok(Arc::new(Frame(
+                            PUB,
+                            topic.into(),
+                            Some(message.into()),
+                            sender,
+                        ))),
                     },
                     SUB => {
                         // we get the topic and ignore anything after a whitespace.
                         let topic = rest.split(' ').nth(1).unwrap_or(rest);
-                        Ok(Frame(SUB, topic.into(), None, sender))
+                        Ok(Arc::new(Frame(SUB, topic.into(), None, sender)))
                     }
                     _ => InvalidMessage::new_result(
                         "invalid message format - needs to be in format `PUB $topic $message"

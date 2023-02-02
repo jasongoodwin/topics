@@ -1,4 +1,3 @@
-use std::borrow::Borrow;
 use std::env;
 use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
@@ -21,11 +20,11 @@ mod result;
 /// Drop is just here for example so you can see that there aren't any leaks on disconnect.
 struct TopicSender {
     id: String,
-    sender: Sender<Frame>,
+    sender: Sender<Arc<Frame>>,
 }
 
 impl TopicSender {
-    pub(crate) fn new(sender: Sender<Frame>) -> Arc<TopicSender> {
+    pub(crate) fn new(sender: Sender<Arc<Frame>>) -> Arc<TopicSender> {
         Arc::new(TopicSender {
             id: uuid::Uuid::new_v4().to_string(),
             sender,
@@ -66,7 +65,7 @@ async fn main() -> result::Result<()> {
 
     let listener = TcpListener::bind(&addr).await?;
 
-    let (tx, mut rx): (Sender<Frame>, Receiver<Frame>) = mpsc::channel(128);
+    let (tx, mut rx): (Sender<Arc<Frame>>, Receiver<Arc<Frame>>) = mpsc::channel(128);
 
     // spawn a task to receive messages for the pub/sub engine.
     tokio::spawn(async move {
@@ -90,7 +89,7 @@ async fn main() -> result::Result<()> {
             socket.into_split();
         let tx = tx.clone();
 
-        let (reply_tx, mut reply_rx): (Sender<Frame>, Receiver<Frame>) = channel(128);
+        let (reply_tx, mut reply_rx): (Sender<Arc<Frame>>, Receiver<Arc<Frame>>) = channel(128);
 
         let topic_sender = TopicSender::new(reply_tx);
 
@@ -130,12 +129,12 @@ async fn main() -> result::Result<()> {
                 if message_size < 2 {
                     println!("DEBUG - disconnect received");
                     // Likely a FIN was ACK'd. On OSX, the socket advertises a single byte read (0x4).
-                    tx.send(Frame(
+                    tx.send(Arc::new(Frame(
                         MessageType::QUIT,
                         String::new(),
                         None,
                         topic_sender.clone(),
-                    ))
+                    )))
                     .await
                     .expect("something went really sideways");
 
@@ -144,7 +143,7 @@ async fn main() -> result::Result<()> {
 
                 // note: we drop the newline bytes here. TODO[2022/Oct/05] move that to the codec.
                 match Frame::decode(&buf[0..message_size - 2], topic_sender.clone()) {
-                    Ok(frame) if frame.borrow().0.borrow() == &MessageType::QUIT => {
+                    Ok(frame) if frame.0 == MessageType::QUIT => {
                         println!("DEBUG - quit");
                         tx.send(frame)
                             .await
