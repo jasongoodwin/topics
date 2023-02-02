@@ -112,71 +112,64 @@ impl Frame {
 #[cfg(test)]
 mod tests {
     use crate::{Frame, MessageType, TopicSender};
+    use std::ops::Deref;
     use tokio::sync::mpsc;
-    use tokio::sync::mpsc::{Receiver, Sender};
 
     #[test]
     fn frame_should_decode_pub() {
-        let (tx, _rx): (Sender<Frame>, Receiver<Frame>) = mpsc::channel(128);
+        let (tx, _rx) = mpsc::channel(128);
         let topic_sender = TopicSender::new(tx);
 
-        let Frame(message_type, topic, content, _sender) =
-            Frame::decode("PUB topic message".as_ref(), topic_sender).unwrap();
-        assert_eq!(message_type, MessageType::PUB);
+        let frame = Frame::decode("PUB topic message".as_ref(), topic_sender).unwrap();
+        let Frame(message_type, topic, content, _sender) = frame.deref();
+
+        assert_eq!(message_type, &MessageType::PUB);
         assert_eq!(topic, "topic");
-        assert_eq!(content, Some("message".into()));
+        assert_eq!(content, &Some("message".into()));
     }
 
     #[test]
     fn frame_should_decode_sub() {
-        let (tx, _rx): (Sender<Frame>, Receiver<Frame>) = mpsc::channel(128);
+        let (tx, _rx) = mpsc::channel(128);
         let topic_sender = TopicSender::new(tx);
 
-        let Frame(message_type, topic, content, _sender) =
-            Frame::decode("SUB topic".as_ref(), topic_sender).unwrap();
-        assert_eq!(message_type, MessageType::SUB);
+        let frame = Frame::decode("SUB topic".as_ref(), topic_sender).unwrap();
+        let Frame(message_type, topic, content, _sender) = frame.deref();
+
+        assert_eq!(message_type, &MessageType::SUB);
         assert_eq!(topic, "topic");
-        assert_eq!(content, None);
+        assert_eq!(content, &None);
     }
 
     #[test]
     fn frame_should_decode_quit() {
-        let (tx, _rx): (Sender<Frame>, Receiver<Frame>) = mpsc::channel(128);
+        let (tx, _rx) = mpsc::channel(128);
         let topic_sender = TopicSender::new(tx);
 
-        let Frame(message_type, topic, content, _sender) =
-            Frame::decode("QUIT".as_ref(), topic_sender).unwrap();
-        assert_eq!(message_type, MessageType::QUIT);
+        let frame = Frame::decode("QUIT".as_ref(), topic_sender).unwrap();
+        let Frame(message_type, topic, content, _sender) = frame.deref();
+
+        assert_eq!(message_type, &MessageType::QUIT);
         assert_eq!(topic, "");
-        assert_eq!(content, None);
+        assert_eq!(content, &None);
     }
 
     #[test]
     fn frame_should_encode_quit() {
-        let (tx, _rx): (Sender<Frame>, Receiver<Frame>) = mpsc::channel(128);
+        let (tx, _rx) = mpsc::channel(128);
         let topic_sender = TopicSender::new(tx);
 
-        let frame = Frame {
-            0: MessageType::QUIT,
-            1: "".to_string(),
-            2: None,
-            3: topic_sender,
-        };
+        let frame = Frame(MessageType::QUIT, String::new(), None, topic_sender);
 
         assert_eq!(frame.encode(), "QUIT\n".as_bytes().to_owned())
     }
 
     #[test]
     fn frame_should_encode_update() {
-        let (tx, _rx): (Sender<Frame>, Receiver<Frame>) = mpsc::channel(128);
+        let (tx, _rx) = mpsc::channel(128);
         let topic_sender = TopicSender::new(tx);
 
-        let frame = Frame {
-            0: MessageType::QUIT,
-            1: "".to_string(),
-            2: None,
-            3: topic_sender,
-        };
+        let frame = Frame(MessageType::QUIT, "".to_string(), None, topic_sender);
 
         assert_eq!(frame.encode(), "QUIT\n".as_bytes().to_owned())
     }
