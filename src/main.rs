@@ -59,14 +59,14 @@ impl Eq for TopicSender {}
 /// You can pass in the listening host/port as a parameter
 /// or else it will use port 8889.
 #[tokio::main]
-async fn main() -> crate::result::Result<()> {
+async fn main() -> result::Result<()> {
     let addr: String = env::args()
         .nth(1)
         .unwrap_or_else(|| "0.0.0.0:8889".to_string());
 
     let listener = TcpListener::bind(&addr).await?;
 
-    let (tx, mut rx): (Sender<protocol::Frame>, Receiver<protocol::Frame>) = mpsc::channel(128);
+    let (tx, mut rx): (Sender<Frame>, Receiver<Frame>) = mpsc::channel(128);
 
     // spawn a task to receive messages for the pub/sub engine.
     tokio::spawn(async move {
@@ -130,12 +130,12 @@ async fn main() -> crate::result::Result<()> {
                 if message_size < 2 {
                     println!("DEBUG - disconnect received");
                     // Likely a FIN was ACK'd. On OSX, the socket advertises a single byte read (0x4).
-                    tx.send(Frame {
-                        0: MessageType::QUIT,
-                        1: "".to_string(),
-                        2: None,
-                        3: topic_sender.clone(),
-                    })
+                    tx.send(Frame(
+                        MessageType::QUIT,
+                        String::new(),
+                        None,
+                        topic_sender.clone(),
+                    ))
                     .await
                     .expect("something went really sideways");
 

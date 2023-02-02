@@ -17,7 +17,7 @@ impl PubSubTopics {
     }
 
     /// process_frame will handle a decoded message and reply on the appropriate channel.
-    pub(crate) async fn process_frame(&mut self, frame: Frame) -> () {
+    pub(crate) async fn process_frame(&mut self, frame: Frame) {
         // no locking abstractions are needed as there is a single thread for the core engine.
         // This prevents any contention and will be faster than trying to manage locks.
         // Simple and to the point.

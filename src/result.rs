@@ -12,7 +12,7 @@ pub(crate) struct InvalidMessage {
 
 impl InvalidMessage {
     // returns a boxed InvalidMessage in a result.
-    pub(crate) fn new<T>(details: String) -> Result<T> {
+    pub(crate) fn new_result<T>(details: String) -> Result<T> {
         Err(Box::new(InvalidMessage { details }))
     }
 }
@@ -34,7 +34,7 @@ mod tests {
     // the abstraction just simplifies the types in code to make it more readable.
     fn invalid_message_should_print_debug_msg() {
         let msg: crate::result::Result<_> =
-            InvalidMessage::new::<String>("these are the details".into());
+            InvalidMessage::new_result::<String>("these are the details".into());
         assert_eq!(
             format!("{:?}", msg),
             "Err(InvalidMessage { details: \"these are the details\" })"

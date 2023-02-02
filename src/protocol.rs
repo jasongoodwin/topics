@@ -5,6 +5,7 @@ use crate::result::{InvalidMessage, Result};
 use crate::TopicSender;
 
 #[derive(Debug, Clone, PartialEq)]
+#[allow(clippy::upper_case_acronyms)]
 pub(crate) enum MessageType {
     PUB,
     SUB,
@@ -19,7 +20,7 @@ impl MessageType {
         match typ.to_uppercase().as_str() {
             "PUB" => Ok(PUB),
             "SUB" => Ok(SUB),
-            _ => InvalidMessage::new("Unknown message type".into()),
+            _ => InvalidMessage::new_result("Unknown message type".into()),
         }
     }
 }
@@ -52,17 +53,16 @@ impl Frame {
                 let mut message: String = format!("{:?}", msg_type);
                 // add the topic
                 if content.is_some() {
-                    message = message + &*format!(" {}", content.as_ref().unwrap())
+                    message += &*format!(" {}", content.as_ref().unwrap())
                 }
                 // add the content
                 if !topic.is_empty() {
-                    message = message + &*format!(" {}", topic)
+                    message += &*format!(" {}", topic)
                 }
-                message = message + "\n";
+                message += "\n";
                 message.as_bytes().to_owned()
             }
         }
-
     }
 
     /// decodes bytes into a Result<Frame>
@@ -76,7 +76,7 @@ impl Frame {
             Some((typ, rest)) => {
                 match MessageType::new(typ)? {
                     PUB => match rest.split_once(' ') {
-                        None => InvalidMessage::new(
+                        None => InvalidMessage::new_result(
                             "invalid message format - needs to be in format `PUB $topic $message"
                                 .to_string(),
                         ),
@@ -89,7 +89,7 @@ impl Frame {
                         let topic = rest.split(' ').nth(1).unwrap_or(rest);
                         Ok(Frame(SUB, topic.into(), None, sender))
                     }
-                    _ => InvalidMessage::new(
+                    _ => InvalidMessage::new_result(
                         "invalid message format - needs to be in format `PUB $topic $message"
                             .to_string(),
                     ),
@@ -98,7 +98,7 @@ impl Frame {
 
             None => {
                 println!("DEBUG - bag msg: {}", msg);
-                InvalidMessage::new( "invalid message format - needs to be in format `PUB $topic` or `SUB $topic $optional_parameters".to_string())
+                InvalidMessage::new_result( "invalid message format - needs to be in format `PUB $topic` or `SUB $topic $optional_parameters".to_string())
             }
         }
     }
