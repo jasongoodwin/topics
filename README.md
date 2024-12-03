@@ -6,9 +6,13 @@ This project is a demonstration and for us to learn together! I haven't worked o
 It's not intended for production use currently, although it would be a good project to build on.
 See REDIS if you need something similar as the streams and pub/sub features are well developed. 
 
-## Core Design and Ordering Gauruntees
-The core is single-threaded which allows strong ordering guarantees across topics (globally FIFO). 
-If topics were sharded, it should be able to outperform redis at the expense of message ordering across topics (FIFO guaranteed per shard only).
+## Core Design and Guarantees
+*Ordering Guaruntees* are strong across all topics (globally FIFO). By design, the core that holds the topics/subscribers is single-threaded, similar to Redis.
+Messages produced by a single producer will always be delivered to consumers in order.
+_Note: If topics were sharded, it should be able to scale-up and outperform redis at the expense of global message ordering._
+
+*Delivery guarantee* is *AT MOST ONCE* delivery, and so this is better for streaming services instead of batch/event processing.
+If you need at least once, you will do better with something like Redis Streams or Kafka that have ACKs for consumer/offset state, and message durability to ensure delivery through network failures. 
 
 ## Status
 This project was built to get me back into rust as it's been a few months.
