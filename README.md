@@ -1,5 +1,5 @@
 # topics-rs
-A redis-pub/sub-inspired Rust demo/project showing an in memory topic store that publishes updates to consumers.
+Rust Pub/Sub broker built from scratch. Inspired by Redis' protocol.
 
 This project is a demonstration and for us to learn together!
 It's not intended for production use currently, although would be a good seed project.
