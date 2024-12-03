@@ -4,7 +4,7 @@ Rust TCP Pub/Sub broker built from scratch. Inspired by Redis' protocol.
 This project is a demonstration and for us to learn together! I haven't worked on it much or bench'd it but it should be feasible to get it screaming fast.
 The core is single threaded, async around the edges.
 It's not intended for production use currently, although it would be a good project to build on.
-See REDIS if you need something similar as the streams and pub/sub features are well developed. If the topics were sharded, it would be possible to get this to outperform Redis with out much effort. 
+See REDIS if you need something similar as the streams and pub/sub features are well developed. 
 
 ## Status
 This project was built to get me back into rust as it's been a few months.
